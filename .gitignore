@@ -19,9 +19,7 @@ yarn-error.log*
 Thumbs.db
 
 # Data and output files
-skiresorts.json
-resorts_trails_lifts.json
-all_trails_lifts.json
+server/db
 
 # Miscellaneous
 *.bak
