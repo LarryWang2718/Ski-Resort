@@ -6,21 +6,29 @@ function Trails() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [difficulty, setDifficulty] = useState('');
+  const [resortQuery, setResortQuery] = useState('');
+  const [resortId, setResortId] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
+    // Fetch only on initial mount and page change. Search via submit.
     fetchTrails();
-  }, [page, searchTerm, difficulty]);
+  }, [page]);
 
-  const fetchTrails = async () => {
+  const fetchTrails = async (opts = {}) => {
+    const currentPage = opts.pageArg || page;
+    const currentResortId = opts.resortIdArg !== undefined ? opts.resortIdArg : resortId;
     setLoading(true);
     try {
-      let url = `/api/trails?page=${page}&limit=20`;
+      let url = `/api/trails?page=${currentPage}&limit=20`;
       if (searchTerm) {
-        url = `/api/trails/search?q=${searchTerm}&limit=20`;
-      } else if (difficulty) {
-        url += `&difficulty=${difficulty}`;
+        url = `/api/trails/search?q=${encodeURIComponent(searchTerm)}&limit=20`;
+        if (difficulty) url += `&difficulty=${encodeURIComponent(difficulty)}`;
+        if (currentResortId) url += `&resort=${encodeURIComponent(currentResortId)}`;
+      } else {
+        if (difficulty) url += `&difficulty=${encodeURIComponent(difficulty)}`;
+        if (currentResortId) url += `&resort=${encodeURIComponent(currentResortId)}`;
       }
 
       const response = await axios.get(url);
@@ -35,8 +43,21 @@ function Trails() {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    setPage(1);
-    fetchTrails();
+    const resolveAndFetch = async () => {
+      let resolvedResortId = '';
+      if (resortQuery && resortQuery.trim().length > 0) {
+        try {
+          const r = await axios.get(`/api/resorts/search?q=${encodeURIComponent(resortQuery)}&limit=1`);
+          resolvedResortId = r.data.data?.[0]?._id || '';
+        } catch (err) {
+          console.error('Error resolving resort:', err);
+        }
+      }
+      setResortId(resolvedResortId);
+      setPage(1);
+      await fetchTrails({ pageArg: 1, resortIdArg: resolvedResortId });
+    };
+    resolveAndFetch();
   };
 
   if (loading) {
@@ -67,6 +88,13 @@ function Trails() {
             <option value="difficult">Difficult</option>
             <option value="expert">Expert</option>
           </select>
+          <input
+            type="text"
+            placeholder="Filter by resort name..."
+            value={resortQuery}
+            onChange={(e) => setResortQuery(e.target.value)}
+            className="search-bar"
+          />
           <button type="submit" className="btn">Search</button>
         </form>
       </div>

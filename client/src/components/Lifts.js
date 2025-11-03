@@ -6,21 +6,29 @@ function Lifts() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [aerialway, setAerialway] = useState('');
+  const [resortQuery, setResortQuery] = useState('');
+  const [resortId, setResortId] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
+    // Fetch only on initial mount and page change. Search via submit.
     fetchLifts();
-  }, [page, searchTerm, aerialway]);
+  }, [page]);
 
-  const fetchLifts = async () => {
+  const fetchLifts = async (opts = {}) => {
+    const currentPage = opts.pageArg || page;
+    const currentResortId = opts.resortIdArg !== undefined ? opts.resortIdArg : resortId;
     setLoading(true);
     try {
-      let url = `/api/lifts?page=${page}&limit=20`;
+      let url = `/api/lifts?page=${currentPage}&limit=20`;
       if (searchTerm) {
-        url = `/api/lifts/search?q=${searchTerm}&limit=20`;
-      } else if (aerialway) {
-        url += `&aerialway=${aerialway}`;
+        url = `/api/lifts/search?q=${encodeURIComponent(searchTerm)}&limit=20`;
+        if (aerialway) url += `&aerialway=${encodeURIComponent(aerialway)}`;
+        if (currentResortId) url += `&resort=${encodeURIComponent(currentResortId)}`;
+      } else {
+        if (aerialway) url += `&aerialway=${encodeURIComponent(aerialway)}`;
+        if (currentResortId) url += `&resort=${encodeURIComponent(currentResortId)}`;
       }
 
       const response = await axios.get(url);
@@ -35,8 +43,21 @@ function Lifts() {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    setPage(1);
-    fetchLifts();
+    const resolveAndFetch = async () => {
+      let resolvedResortId = '';
+      if (resortQuery && resortQuery.trim().length > 0) {
+        try {
+          const r = await axios.get(`/api/resorts/search?q=${encodeURIComponent(resortQuery)}&limit=1`);
+          resolvedResortId = r.data.data?.[0]?._id || '';
+        } catch (err) {
+          console.error('Error resolving resort:', err);
+        }
+      }
+      setResortId(resolvedResortId);
+      setPage(1);
+      await fetchLifts({ pageArg: 1, resortIdArg: resolvedResortId });
+    };
+    resolveAndFetch();
   };
 
   if (loading) {
@@ -68,6 +89,13 @@ function Lifts() {
             <option value="drag_lift">Drag Lift</option>
             <option value="magic_carpet">Magic Carpet</option>
           </select>
+          <input
+            type="text"
+            placeholder="Filter by resort name..."
+            value={resortQuery}
+            onChange={(e) => setResortQuery(e.target.value)}
+            className="search-bar"
+          />
           <button type="submit" className="btn">Search</button>
         </form>
       </div>

@@ -43,15 +43,30 @@ code {
   background: #667eea;
   color: white;
   border: none;
-  padding: 10px 20px;
-  border-radius: 5px;
+  padding: 12px 18px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 16px;
-  transition: background 0.2s ease;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none; /* ensure Links look like buttons */
+  transition: background 0.2s ease, transform 0.05s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .btn:hover {
   background: #5a6fd8;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.card .btn {
+  margin-top: 12px; /* give breathing room below card text */
 }
 
 .btn-secondary {

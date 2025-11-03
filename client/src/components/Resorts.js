@@ -11,8 +11,9 @@ function Resorts() {
   const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
+    // Fetch when page changes or on initial mount. Search occurs via form submit.
     fetchResorts();
-  }, [page, searchTerm, country]);
+  }, [page]);
 
   const fetchResorts = async () => {
     setLoading(true);
