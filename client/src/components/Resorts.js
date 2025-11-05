@@ -77,9 +77,9 @@ function Resorts() {
             {resort.location_region && (
               <p><strong>Region:</strong> {resort.location_region}</p>
             )}
-            {resort.coordinates && (
+            {resort.location_coordinate && (
               <p>
-                <strong>Location:</strong> {resort.coordinates.lat.toFixed(4)}, {resort.coordinates.lng.toFixed(4)}
+                <strong>Location:</strong> {parseFloat(resort.location_coordinate.lat).toFixed(4)}, {parseFloat(resort.location_coordinate.long).toFixed(4)}
               </p>
             )}
             <Link to={`/resorts/${resort._id}`} className="btn">

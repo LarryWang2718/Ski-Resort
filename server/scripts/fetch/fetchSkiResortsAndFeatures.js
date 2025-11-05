@@ -29,6 +29,8 @@ async function fetchOverpassData(query) {
 async function fetchSkiResortsAndFeatures() {
     try {
         // Query to fetch all ski resort elements
+        // Using 'out geom;' to get full geometry for ways (coordinate paths)
+        // This allows trails and lifts to be displayed as lines on the map
         const query = `
 [out:json][timeout:1800];
 (
@@ -39,7 +41,7 @@ async function fetchSkiResortsAndFeatures() {
   way["aerialway"];
   relation["aerialway"];
 );
-out center;
+out geom;
 `;
 
         console.log('Executing Overpass query...');

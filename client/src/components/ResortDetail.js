@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
+import ResortMap from './ResortMap';
 
 function ResortDetail() {
   const { id } = useParams();
@@ -8,6 +9,8 @@ function ResortDetail() {
   const [trails, setTrails] = useState([]);
   const [lifts, setLifts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showTrails, setShowTrails] = useState(true);
+  const [showLifts, setShowLifts] = useState(true);
 
   useEffect(() => {
     fetchResortDetails();
@@ -43,9 +46,9 @@ function ResortDetail() {
         {resort.location_region && (
           <p><strong>Region:</strong> {resort.location_region}</p>
         )}
-        {resort.coordinates && (
+        {resort.location_coordinate && (
           <p>
-            <strong>Location:</strong> {resort.coordinates.lat.toFixed(4)}, {resort.coordinates.lng.toFixed(4)}
+            <strong>Location:</strong> {parseFloat(resort.location_coordinate.lat).toFixed(4)}, {parseFloat(resort.location_coordinate.long).toFixed(4)}
           </p>
         )}
       </div>
@@ -70,6 +73,134 @@ function ResortDetail() {
             {lifts.filter(l => l.status === 'open').length}
           </div>
           <div className="stat-label">Open Lifts</div>
+        </div>
+      </div>
+
+      {/* Interactive Map Section */}
+      <div style={{ marginTop: '2rem', marginBottom: '2rem' }}>
+        <h2 style={{ color: 'white', marginBottom: '1rem' }}>Interactive Map</h2>
+        <div className="card" style={{ padding: '1.5rem' }}>
+          {/* Map Controls */}
+          <div style={{ 
+            marginBottom: '1rem', 
+            display: 'flex', 
+            gap: '1.5rem', 
+            flexWrap: 'wrap',
+            alignItems: 'center'
+          }}>
+            <label style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.5rem', 
+              cursor: 'pointer',
+              color: 'white'
+            }}>
+              <input
+                type="checkbox"
+                checked={showTrails}
+                onChange={(e) => setShowTrails(e.target.checked)}
+                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+              />
+              <span>Show Trails ({trails.length})</span>
+            </label>
+            <label style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.5rem', 
+              cursor: 'pointer',
+              color: 'white'
+            }}>
+              <input
+                type="checkbox"
+                checked={showLifts}
+                onChange={(e) => setShowLifts(e.target.checked)}
+                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+              />
+              <span>Show Lifts ({lifts.length})</span>
+            </label>
+          </div>
+
+          {/* Map Component */}
+          <ResortMap 
+            resort={resort}
+            trails={showTrails ? trails : []}
+            lifts={showLifts ? lifts : []}
+            showTrails={showTrails}
+            showLifts={showLifts}
+          />
+
+          {/* Map Legend */}
+          <div style={{ 
+            marginTop: '1rem', 
+            padding: '1rem', 
+            background: 'rgba(255, 255, 255, 0.05)', 
+            borderRadius: '4px',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '1.5rem',
+            fontSize: '0.9rem'
+          }}>
+            <div style={{ color: 'white' }}>
+              <strong>Legend:</strong>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{
+                background: '#FF6B6B',
+                width: '16px',
+                height: '16px',
+                borderRadius: '50%',
+                border: '2px solid white'
+              }} />
+              <span style={{ color: 'white' }}>Resort Center</span>
+            </div>
+            {showTrails && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{
+                    background: '#2E7D32',
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    border: '1px solid white'
+                  }} />
+                  <span style={{ color: 'white' }}>Easy</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{
+                    background: '#F9A825',
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    border: '1px solid white'
+                  }} />
+                  <span style={{ color: 'white' }}>Intermediate</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{
+                    background: '#C62828',
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    border: '1px solid white'
+                  }} />
+                  <span style={{ color: 'white' }}>Difficult</span>
+                </div>
+              </>
+            )}
+            {showLifts && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{
+                  background: '#4ECDC4',
+                  width: '12px',
+                  height: '12px',
+                  borderRadius: '2px',
+                  transform: 'rotate(45deg)',
+                  border: '1px solid white'
+                }} />
+                <span style={{ color: 'white' }}>Lifts</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

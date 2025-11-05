@@ -14,7 +14,12 @@ const TrailSchema = new mongoose.Schema({
   patrolled: Boolean,
   groomingPriority: Number, // 1-5
   description: String,
-  // Geographic coordinates
+  // Geographic coordinates - full path for displaying on map
+  coordinates: [{
+    longitude: Number,
+    latitude: Number
+  }],
+  // Legacy single point coordinates (for backward compatibility)
   longitude: Number,
   latitude: Number,
   // Mutual reference to Resort

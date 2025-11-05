@@ -11,7 +11,12 @@ const LiftSchema = new mongoose.Schema({
   lit: Boolean,
   length: Number, // in meters (if available)
   description: String,
-  // Geographic coordinates
+  // Geographic coordinates - full path for displaying on map
+  coordinates: [{
+    longitude: Number,
+    latitude: Number
+  }],
+  // Legacy single point coordinates (for backward compatibility)
   longitude: Number,
   latitude: Number,
   // Mutual reference to Resort

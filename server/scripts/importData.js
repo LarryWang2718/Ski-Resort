@@ -1,9 +1,9 @@
 // Load environment variables
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const mongoose = require('mongoose');
 const fs = require('fs');
-const path = require('path');
 
 // Import models
 const Resort = require('../models/Resort');
@@ -73,9 +73,30 @@ const importData = async () => {
               continue;
             }
 
-            // Extract coordinates from center object for way elements
-            const longitude = member.center ? member.center.lon : null;
-            const latitude = member.center ? member.center.lat : null;
+            // Extract full geometry path from way element
+            let coordinates = [];
+            let longitude = null;
+            let latitude = null;
+            
+            if (member.geometry && Array.isArray(member.geometry) && member.geometry.length > 0) {
+              // Convert geometry array to coordinates format: [{longitude, latitude}, ...]
+              coordinates = member.geometry.map(point => ({
+                longitude: parseFloat(point.lon),
+                latitude: parseFloat(point.lat)
+              })).filter(coord => !isNaN(coord.longitude) && !isNaN(coord.latitude));
+              
+              // Calculate center point as average of all coordinates
+              if (coordinates.length > 0) {
+                const sumLon = coordinates.reduce((sum, coord) => sum + coord.longitude, 0);
+                const sumLat = coordinates.reduce((sum, coord) => sum + coord.latitude, 0);
+                longitude = sumLon / coordinates.length;
+                latitude = sumLat / coordinates.length;
+              }
+            } else if (member.center) {
+              // Fallback to center if geometry not available
+              longitude = member.center.lon ? parseFloat(member.center.lon) : null;
+              latitude = member.center.lat ? parseFloat(member.center.lat) : null;
+            }
 
             // Determine if this is a trail or lift based on tags
             const tags = member.tags || {};
@@ -95,8 +116,9 @@ const importData = async () => {
                 lit: tags.lit === 'yes',
                 length: tags['aerialway:length'] ? parseFloat(tags['aerialway:length']) : null,
                 description: tags.description || '',
-                longitude: longitude ? parseFloat(longitude) : null,
-                latitude: latitude ? parseFloat(latitude) : null,
+                coordinates: coordinates, // Full coordinate path for map display
+                longitude: longitude,
+                latitude: latitude, // Center point for legacy compatibility
                 resort: resortId
               };
             }
@@ -116,8 +138,9 @@ const importData = async () => {
                 patrolled: tags.patrolled !== 'no',
                 groomingPriority: tags['piste:grooming:priority'] ? parseInt(tags['piste:grooming:priority']) : null,
                 description: tags.description || '',
-                longitude: longitude ? parseFloat(longitude) : null,
-                latitude: latitude ? parseFloat(latitude) : null,
+                coordinates: coordinates, // Full coordinate path for map display
+                longitude: longitude,
+                latitude: latitude, // Center point for legacy compatibility
                 resort: resortId
               };
             }
