@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 function Lifts() {
+  const navigate = useNavigate();
   const [lifts, setLifts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -101,28 +103,56 @@ function Lifts() {
       </div>
 
       <div className="grid">
-        {lifts.map((lift) => (
-          <div key={lift._id} className="card">
-            <h3>{lift.name}</h3>
-            <p><strong>Type:</strong> {lift.aerialway}</p>
-            <p><strong>Status:</strong> {lift.status}</p>
-            {lift.resort && (
-              <p><strong>Resort:</strong> {lift.resort.name}</p>
-            )}
-            {lift.capacity && (
-              <p><strong>Capacity:</strong> {lift.capacity} people/hour</p>
-            )}
-            {lift.duration && (
-              <p><strong>Duration:</strong> {lift.duration} minutes</p>
-            )}
-            {lift.lit && (
-              <p><strong>Night Operation:</strong> {lift.lit ? 'Yes' : 'No'}</p>
-            )}
-            {lift.oneway && (
-              <p><strong>One Way:</strong> {lift.oneway ? 'Yes' : 'No'}</p>
-            )}
-          </div>
-        ))}
+        {lifts.map((lift) => {
+          const resortId = lift.resort ? (typeof lift.resort === 'object' ? lift.resort._id : lift.resort) : null;
+          return (
+            <div 
+              key={lift._id} 
+              className="card"
+              onClick={() => resortId && navigate(`/resorts/${resortId}`)}
+              style={{ 
+                cursor: resortId ? 'pointer' : 'default',
+                transition: 'transform 0.2s, box-shadow 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                if (resortId) {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (resortId) {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '';
+                }
+              }}
+            >
+              <h3>{lift.name}</h3>
+              <p><strong>Type:</strong> {lift.aerialway}</p>
+              <p><strong>Status:</strong> {lift.status}</p>
+              {lift.resort && (
+                <p><strong>Resort:</strong> {typeof lift.resort === 'object' ? lift.resort.name : 'N/A'}</p>
+              )}
+              {lift.capacity && (
+                <p><strong>Capacity:</strong> {lift.capacity} people/hour</p>
+              )}
+              {lift.duration && (
+                <p><strong>Duration:</strong> {lift.duration} minutes</p>
+              )}
+              {lift.lit && (
+                <p><strong>Night Operation:</strong> {lift.lit ? 'Yes' : 'No'}</p>
+              )}
+              {lift.oneway && (
+                <p><strong>One Way:</strong> {lift.oneway ? 'Yes' : 'No'}</p>
+              )}
+              {resortId && (
+                <p style={{ marginTop: '0.5rem', color: '#4A90E2', fontSize: '0.9rem', fontWeight: '500' }}>
+                  Click to view resort →
+                </p>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {totalPages > 1 && (

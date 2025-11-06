@@ -27,11 +27,39 @@ router.get('/', async (req, res) => {
       filter.name = { $regex: req.query.name, $options: 'i' };
     }
 
-    // Get resorts with pagination
-    const resorts = await Resort.find(filter)
-      .skip(skip)
-      .limit(limit)
-      .sort({ name: 1 });
+    // Get resorts with pagination, sorted by rank (numeric)
+    // Use aggregation to convert rank string to number for proper sorting
+    const resorts = await Resort.aggregate([
+      { $match: filter },
+      {
+        $addFields: {
+          rankNum: {
+            $cond: {
+              if: { $or: [{ $eq: ["$rank", null] }, { $eq: ["$rank", ""] }] },
+              then: 999999,
+              else: {
+                $convert: {
+                  input: {
+                    $replaceAll: {
+                      input: { $toString: "$rank" },
+                      find: ",",
+                      replacement: ""
+                    }
+                  },
+                  to: "int",
+                  onError: 999999,
+                  onNull: 999999
+                }
+              }
+            }
+          }
+        }
+      },
+      { $sort: { rankNum: 1 } },
+      { $skip: skip },
+      { $limit: limit },
+      { $project: { rankNum: 0 } }
+    ]);
 
     // Get total count for pagination
     const total = await Resort.countDocuments(filter);
@@ -78,9 +106,37 @@ router.get('/search', async (req, res) => {
       filter.location_region = { $regex: region, $options: 'i' };
     }
 
-    const resorts = await Resort.find(filter)
-      .limit(parseInt(limit))
-      .sort({ name: 1 });
+    // Get resorts sorted by rank (numeric)
+    const resorts = await Resort.aggregate([
+      { $match: filter },
+      {
+        $addFields: {
+          rankNum: {
+            $cond: {
+              if: { $or: [{ $eq: ["$rank", null] }, { $eq: ["$rank", ""] }] },
+              then: 999999,
+              else: {
+                $convert: {
+                  input: {
+                    $replaceAll: {
+                      input: { $toString: "$rank" },
+                      find: ",",
+                      replacement: ""
+                    }
+                  },
+                  to: "int",
+                  onError: 999999,
+                  onNull: 999999
+                }
+              }
+            }
+          }
+        }
+      },
+      { $sort: { rankNum: 1 } },
+      { $limit: parseInt(limit) },
+      { $project: { rankNum: 0 } }
+    ]);
 
     res.json({
       success: true,

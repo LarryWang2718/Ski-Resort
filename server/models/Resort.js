@@ -12,8 +12,8 @@ const ResortSchema = new mongoose.Schema({
   rating: String,
   url: String,
   location_coordinate: {
-    lat: String,
-    long: String
+    lat: Number,
+    long: Number
   },
   location_country: String,
   location_region: String,

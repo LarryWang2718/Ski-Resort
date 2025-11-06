@@ -6,6 +6,7 @@ import { logout } from '../store/slices/authSlice';
 function Navbar() {
   const dispatch = useDispatch();
   const { isAuthenticated } = useSelector((state) => state.auth);
+  const [logoError, setLogoError] = React.useState(false);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -14,8 +15,17 @@ function Navbar() {
   return (
     <nav className="navbar">
       <div className="navbar-content">
-        <Link to="/" className="logo">
-          🏂 Ski Resort Finder
+        <Link to="/" className="logo" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '-35px' }}>
+          {logoError ? (
+            <span>🏂 Ski Resort Finder</span>
+          ) : (
+            <img 
+              src={`${process.env.PUBLIC_URL}/logo.png`} 
+              alt="Ski Resort Finder Logo" 
+              style={{ height: '40px', width: 'auto' }}
+              onError={() => setLogoError(true)}
+            />
+          )}
         </Link>
         <ul className="nav-links">
           <li><Link to="/">Home</Link></li>

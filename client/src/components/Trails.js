@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 function Trails() {
+  const navigate = useNavigate();
   const [trails, setTrails] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -100,25 +102,53 @@ function Trails() {
       </div>
 
       <div className="grid">
-        {trails.map((trail) => (
-          <div key={trail._id} className="card">
-            <h3>{trail.name}</h3>
-            <p><strong>Difficulty:</strong> {trail.difficulty}</p>
-            <p><strong>Status:</strong> {trail.status}</p>
-            {trail.resort && (
-              <p><strong>Resort:</strong> {trail.resort.name}</p>
-            )}
-            {trail.pisteType && (
-              <p><strong>Type:</strong> {trail.pisteType}</p>
-            )}
-            {trail.grooming && (
-              <p><strong>Grooming:</strong> {trail.grooming}</p>
-            )}
-            {trail.lit && (
-              <p><strong>Night Skiing:</strong> {trail.lit ? 'Yes' : 'No'}</p>
-            )}
-          </div>
-        ))}
+        {trails.map((trail) => {
+          const resortId = trail.resort ? (typeof trail.resort === 'object' ? trail.resort._id : trail.resort) : null;
+          return (
+            <div 
+              key={trail._id} 
+              className="card"
+              onClick={() => resortId && navigate(`/resorts/${resortId}`)}
+              style={{ 
+                cursor: resortId ? 'pointer' : 'default',
+                transition: 'transform 0.2s, box-shadow 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                if (resortId) {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (resortId) {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '';
+                }
+              }}
+            >
+              <h3>{trail.name}</h3>
+              <p><strong>Difficulty:</strong> {trail.difficulty}</p>
+              <p><strong>Status:</strong> {trail.status}</p>
+              {trail.resort && (
+                <p><strong>Resort:</strong> {typeof trail.resort === 'object' ? trail.resort.name : 'N/A'}</p>
+              )}
+              {trail.pisteType && (
+                <p><strong>Type:</strong> {trail.pisteType}</p>
+              )}
+              {trail.grooming && (
+                <p><strong>Grooming:</strong> {trail.grooming}</p>
+              )}
+              {trail.lit && (
+                <p><strong>Night Skiing:</strong> {trail.lit ? 'Yes' : 'No'}</p>
+              )}
+              {resortId && (
+                <p style={{ marginTop: '0.5rem', color: '#4A90E2', fontSize: '0.9rem', fontWeight: '500' }}>
+                  Click to view resort →
+                </p>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {totalPages > 1 && (

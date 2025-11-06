@@ -93,7 +93,8 @@ function ResortDetail() {
               alignItems: 'center', 
               gap: '0.5rem', 
               cursor: 'pointer',
-              color: 'white'
+              color: '#333',
+              fontSize: '1rem'
             }}>
               <input
                 type="checkbox"
@@ -101,14 +102,15 @@ function ResortDetail() {
                 onChange={(e) => setShowTrails(e.target.checked)}
                 style={{ width: '18px', height: '18px', cursor: 'pointer' }}
               />
-              <span>Show Trails ({trails.length})</span>
+              <span style={{ fontWeight: '500', color: '#333' }}>Trails ({trails.length})</span>
             </label>
             <label style={{ 
               display: 'flex', 
               alignItems: 'center', 
               gap: '0.5rem', 
               cursor: 'pointer',
-              color: 'white'
+              color: '#333',
+              fontSize: '1rem'
             }}>
               <input
                 type="checkbox"
@@ -116,7 +118,7 @@ function ResortDetail() {
                 onChange={(e) => setShowLifts(e.target.checked)}
                 style={{ width: '18px', height: '18px', cursor: 'pointer' }}
               />
-              <span>Show Lifts ({lifts.length})</span>
+              <span style={{ fontWeight: '500', color: '#333' }}>Lifts ({lifts.length})</span>
             </label>
           </div>
 
@@ -133,72 +135,120 @@ function ResortDetail() {
           <div style={{ 
             marginTop: '1rem', 
             padding: '1rem', 
-            background: 'rgba(255, 255, 255, 0.05)', 
+            background: 'rgba(255, 255, 255, 0.95)', 
             borderRadius: '4px',
             display: 'flex',
             flexWrap: 'wrap',
             gap: '1.5rem',
-            fontSize: '0.9rem'
+            fontSize: '1rem'
           }}>
-            <div style={{ color: 'white' }}>
-              <strong>Legend:</strong>
+            <div style={{ color: '#333', fontWeight: 'bold', width: '100%', marginBottom: '0.5rem' }}>
+              Legend:
             </div>
+            
+            {/* Resort Center */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <div style={{
-                background: '#FF6B6B',
-                width: '16px',
-                height: '16px',
+                background: '#000000',
+                width: '12px',
+                height: '12px',
                 borderRadius: '50%',
-                border: '2px solid white'
+                border: '2px solid #333'
               }} />
-              <span style={{ color: 'white' }}>Resort Center</span>
+              <span style={{ color: '#333' }}>Resort Center</span>
             </div>
+            
+            {/* Trail Difficulties */}
             {showTrails && (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <div style={{
                     background: '#2E7D32',
-                    width: '12px',
-                    height: '12px',
-                    borderRadius: '50%',
-                    border: '1px solid white'
+                    width: '14px',
+                    height: '3px',
+                    borderRadius: '2px'
                   }} />
-                  <span style={{ color: 'white' }}>Easy</span>
+                  <span style={{ color: '#333' }}>Easy (Green)</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <div style={{
-                    background: '#F9A825',
-                    width: '12px',
-                    height: '12px',
-                    borderRadius: '50%',
-                    border: '1px solid white'
+                    background: '#1976D2',
+                    width: '14px',
+                    height: '3px',
+                    borderRadius: '2px'
                   }} />
-                  <span style={{ color: 'white' }}>Intermediate</span>
+                  <span style={{ color: '#333' }}>Intermediate (Blue)</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <div style={{
-                    background: '#C62828',
-                    width: '12px',
-                    height: '12px',
-                    borderRadius: '50%',
-                    border: '1px solid white'
+                    background: '#212121',
+                    width: '14px',
+                    height: '3px',
+                    borderRadius: '2px'
                   }} />
-                  <span style={{ color: 'white' }}>Difficult</span>
+                  <span style={{ color: '#333' }}>Advanced (Black)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{
+                    background: '#000000',
+                    width: '14px',
+                    height: '4px',
+                    borderRadius: '2px'
+                  }} />
+                  <span style={{ color: '#333' }}>Expert/Double Black</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{
+                    background: '#B71C1C',
+                    width: '14px',
+                    height: '3px',
+                    borderRadius: '2px'
+                  }} />
+                  <span style={{ color: '#333' }}>Extreme/Out-of-Bounds (Red)</span>
                 </div>
               </>
             )}
+            
+            {/* Lift Types */}
             {showLifts && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <div style={{
-                  background: '#4ECDC4',
-                  width: '12px',
-                  height: '12px',
-                  borderRadius: '2px',
-                  transform: 'rotate(45deg)',
-                  border: '1px solid white'
-                }} />
-                <span style={{ color: 'white' }}>Lifts</span>
-              </div>
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{
+                    background: 'repeating-linear-gradient(to right, #FF9800 0px, #FF9800 4px, transparent 4px, transparent 8px)',
+                    width: '14px',
+                    height: '3px',
+                    borderRadius: '2px'
+                  }} />
+                  <span style={{ color: '#333' }}>Gondola/Tram/Cable Car (Orange, Dashed)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{
+                    background: 'repeating-linear-gradient(to right, #4ECDC4 0px, #4ECDC4 4px, transparent 4px, transparent 8px)',
+                    width: '14px',
+                    height: '3px',
+                    borderRadius: '2px'
+                  }} />
+                  <span style={{ color: '#333' }}>Chairlift (Aqua, Dashed)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{
+                    background: 'repeating-linear-gradient(to right, #8E24AA 0px, #8E24AA 4px, transparent 4px, transparent 8px)',
+                    width: '14px',
+                    height: '3px',
+                    borderRadius: '2px'
+                  }} />
+                  <span style={{ color: '#333' }}>Surface Lift (Purple, Dashed)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{
+                    background: 'repeating-linear-gradient(to right, #9E9E9E 0px, #9E9E9E 4px, transparent 4px, transparent 8px)',
+                    width: '14px',
+                    height: '3px',
+                    borderRadius: '2px'
+                  }} />
+                  <span style={{ color: '#333' }}>Closed/Maintenance (Gray, Dashed)</span>
+                </div>
+              </>
             )}
           </div>
         </div>

@@ -48,18 +48,21 @@
 .hero {
   text-align: center;
   padding: 4rem 0;
-  color: white;
+  color: #1a1a1a;
 }
 
 .hero h1 {
   font-size: 3rem;
   margin-bottom: 1rem;
+  color: #1a1a1a;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.6);
 }
 
 .hero p {
   font-size: 1.2rem;
   margin-bottom: 2rem;
-  opacity: 0.9;
+  color: #1a1a1a;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.8), 0 0 16px rgba(255, 255, 255, 0.6);
 }
 
 .grid {
@@ -82,18 +85,21 @@
   border-radius: 10px;
   padding: 1.5rem;
   text-align: center;
-  color: white;
+  color: #1a1a1a;
 }
 
 .stat-number {
   font-size: 2rem;
   font-weight: bold;
   margin-bottom: 0.5rem;
+  color: #1a1a1a;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.6);
 }
 
 .stat-label {
   font-size: 0.9rem;
-  opacity: 0.8;
+  color: #1a1a1a;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.8), 0 0 16px rgba(255, 255, 255, 0.6);
 }
 
 @media (max-width: 768px) {

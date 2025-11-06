@@ -17,7 +17,17 @@ function App() {
   return (
     <Provider store={store}>
       <Router>
-        <div className="App">
+        <div 
+          className="App"
+          style={{
+            backgroundImage: `url(${process.env.PUBLIC_URL}/background.jpg)`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            backgroundAttachment: 'fixed',
+            minHeight: '100vh'
+          }}
+        >
           <Navbar />
           <div className="container">
             <Routes>

@@ -46,8 +46,13 @@ function Resorts() {
   }
 
   return (
-    <div>
-      <h1 style={{ color: 'white', marginBottom: '2rem' }}>Ski Resorts</h1>
+    <div style={{ background: 'transparent' }}>
+      <h1 style={{ 
+        color: 'white', 
+        marginTop: '3.5rem', 
+        marginBottom: '3.5rem',
+        textAlign: 'center'
+      }}>Ski Resorts</h1>
       
       <div className="card">
         <form onSubmit={handleSearch}>
@@ -90,7 +95,12 @@ function Resorts() {
       </div>
 
       {totalPages > 1 && (
-        <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+        <div style={{ 
+          textAlign: 'center', 
+          marginTop: '2rem', 
+          background: 'transparent',
+          padding: '1rem 0'
+        }}>
           <button
             className="btn btn-secondary"
             onClick={() => setPage(page - 1)}

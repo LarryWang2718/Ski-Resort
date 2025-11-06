@@ -20,6 +20,8 @@ Thumbs.db
 
 # Data and output files
 server/db
+client/public/background.jpg
+client/public/logo.png
 
 # Miscellaneous
 *.bak
