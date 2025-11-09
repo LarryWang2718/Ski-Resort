@@ -1,4 +1,12 @@
 {
+  "name": "ski-resort",
+  "version": "1.0.0",
+  "description": "Full stack MERN Ski Resort app.",
+  "author": "Larry Wang",
+  "license": "MIT",
+  "scripts": {
+    "start": "node server/server.js"
+  },
   "dependencies": {
     "mongoimport": "^1.0.6"
   }

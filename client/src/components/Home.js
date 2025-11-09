@@ -65,17 +65,17 @@ function Home() {
 
       <div className="grid">
         <div className="card">
-          <h3>🏔️ Find Your Perfect Resort</h3>
+          <h3>Find Your Perfect Resort</h3>
           <p>Search through our extensive database of ski resorts worldwide. Filter by location, amenities, and more.</p>
           <Link to="/resorts" className="btn">Browse Resorts</Link>
         </div>
         <div className="card">
-          <h3>⛷️ Explore Trails</h3>
+          <h3>Explore Trails</h3>
           <p>Discover trails of all difficulty levels. From beginner-friendly runs to expert challenges.</p>
           <Link to="/trails" className="btn">View Trails</Link>
         </div>
         <div className="card">
-          <h3>🚠 Check Lift Status</h3>
+          <h3>Check Lift Status</h3>
           <p>Get real-time information about lifts, gondolas, and chairlifts at your favorite resorts.</p>
           <Link to="/lifts" className="btn">See Lifts</Link>
         </div>
