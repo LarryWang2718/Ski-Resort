@@ -17,7 +17,7 @@ function Navbar() {
       <div className="navbar-content">
         <Link to="/" className="logo" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '-35px' }}>
           {logoError ? (
-            <span>🏂 Ski Resort Finder</span>
+            <span>Ski Resort Finder</span>
           ) : (
             <img 
               src={`${process.env.PUBLIC_URL}/logo.png`} 
