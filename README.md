@@ -14,12 +14,6 @@ Ski-Resort is a full-stack web application that helps skiers discover resorts, e
 - Client: React, React Router, Axios
 - Tooling: npm scripts, environment-based configuration
 
-## Getting Started
-1. Clone this repository and install dependencies for both the `server` and `client` directories.
-2. Configure the required environment variables (database URI, JWT secret, and weather API credentials).
-3. Run `npm run dev` or equivalent scripts to start the backend server and client development environment.
-4. Visit the client URL in your browser to browse resorts, search for trails, and sign in to unlock review features.
-
 ## Data Sources
 Map layers and geographic context are sourced from OpenStreetMap contributors under the Open Database License. Weather information is fetched from the configured weather API provider as defined in the environment settings.
 
