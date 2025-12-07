@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
 
@@ -12,10 +12,59 @@ const generateToken = (id) => {
   });
 };
 
+const validate = (req, res, next) => {
+  const errors = validationResult(req);
+  if (errors.isEmpty()) {
+    return next();
+  }
+
+  return res.status(400).json({
+    success: false,
+    message: 'Validation failed',
+    errors: errors.array().map((error) => ({
+      field: error.path,
+      message: error.msg
+    }))
+  });
+};
+
+const registrationValidation = [
+  body('firstName').trim().notEmpty().isLength({ max: 50 }),
+  body('lastName').trim().notEmpty().isLength({ max: 50 }),
+  body('email').trim().isEmail().normalizeEmail(),
+  body('password')
+    .isLength({ min: 8 })
+    .matches(/[a-z]/)
+    .matches(/[A-Z]/)
+    .matches(/\d/)
+    .withMessage('Password must be at least 8 characters and include uppercase, lowercase, and a number.'),
+  validate
+];
+
+const loginValidation = [
+  body('email').trim().isEmail().normalizeEmail(),
+  body('password').isString().notEmpty(),
+  validate
+];
+
+const profileValidation = [
+  body('firstName').optional().trim().notEmpty().isLength({ max: 50 }),
+  body('lastName').optional().trim().notEmpty().isLength({ max: 50 }),
+  body('email').optional().trim().isEmail().normalizeEmail(),
+  body('password')
+    .optional()
+    .isLength({ min: 8 })
+    .matches(/[a-z]/)
+    .matches(/[A-Z]/)
+    .matches(/\d/)
+    .withMessage('Password must be at least 8 characters and include uppercase, lowercase, and a number.'),
+  validate
+];
+
 // @desc    Register a new user
 // @route   POST /api/auth/register
 // @access  Public
-router.post('/register', async (req, res) => {
+router.post('/register', registrationValidation, async (req, res) => {
   try {
     const { firstName, lastName, email, password } = req.body;
 
@@ -67,15 +116,23 @@ router.post('/register', async (req, res) => {
 // @desc    Authenticate user & get token
 // @route   POST /api/auth/login
 // @access  Public
-router.post('/login', async (req, res) => {
+router.post('/login', loginValidation, async (req, res) => {
   try {
     const { email, password } = req.body;
 
     // Check for user email
     const user = await User.findOne({ email });
 
+    if (user?.isLocked) {
+      return res.status(423).json({
+        success: false,
+        message: 'Account temporarily locked. Please try again later.'
+      });
+    }
+
     if (user && (await user.matchPassword(password))) {
-      res.json({
+      await user.resetLoginAttempts();
+      return res.json({
         success: true,
         data: {
           _id: user._id,
@@ -86,12 +143,16 @@ router.post('/login', async (req, res) => {
           token: generateToken(user._id)
         }
       });
-    } else {
-      res.status(401).json({
-        success: false,
-        message: 'Invalid email or password'
-      });
     }
+
+    if (user) {
+      await user.incLoginAttempts();
+    }
+
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid email or password'
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({
@@ -107,7 +168,9 @@ router.post('/login', async (req, res) => {
 // @access  Private
 router.get('/me', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('-password');
+    const user = await User.findById(req.user._id).select(
+      '-password -resetPasswordToken -resetPasswordExpire -emailVerificationToken -emailVerificationExpire'
+    );
     
     res.json({
       success: true,
@@ -126,11 +189,21 @@ router.get('/me', protect, async (req, res) => {
 // @desc    Update user profile
 // @route   PUT /api/auth/me
 // @access  Private
-router.put('/me', protect, async (req, res) => {
+router.put('/me', protect, profileValidation, async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
 
     if (user) {
+      if (req.body.email && req.body.email !== user.email) {
+        const emailInUse = await User.findOne({ email: req.body.email, _id: { $ne: user._id } });
+        if (emailInUse) {
+          return res.status(400).json({
+            success: false,
+            message: 'Email already in use'
+          });
+        }
+      }
+
       user.firstName = req.body.firstName || user.firstName;
       user.lastName = req.body.lastName || user.lastName;
       user.email = req.body.email || user.email;

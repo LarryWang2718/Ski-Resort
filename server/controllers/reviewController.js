@@ -1,12 +1,57 @@
 const Review = require("../models/Review");
 
+const pickReviewFields = (input = {}) => {
+    const allowedFields = [
+        'rating',
+        'categories',
+        'title',
+        'content',
+        'visitDate',
+        'visitDuration',
+        'visitSeason',
+        'skiLevel',
+        'snowboardLevel',
+        'groupType',
+        'groupSize',
+        'tripType',
+        'accommodationType',
+        'transportationMethod',
+        'weatherDuringVisit',
+        'favoriteTrails',
+        'favoriteLifts',
+        'wouldRecommendFor',
+        'pros',
+        'cons',
+        'tips',
+        'wouldReturn',
+        'wouldRecommend',
+        'isVerifiedVisit',
+        'verificationMethod',
+        'language',
+        'reviewerLocation',
+        'photos'
+    ];
+
+    return allowedFields.reduce((payload, field) => {
+        if (input[field] !== undefined) {
+            payload[field] = input[field];
+        }
+        return payload;
+    }, {});
+};
+
 exports.createReview = async (req, res) => {
     try{
-        const existing = await Review.findOne({ resort: req.body.resort, user: req.user._id});
+        const resortId = req.params.resortId || req.body.resort;
+        const existing = await Review.findOne({ resort: resortId, user: req.user._id});
         if (existing){
             return res.status(400).json({success: false, message: 'You already created a review for this resort before'});
             }
-        const review = await Review.create({ ...req.body, user: req.user._id});
+        const review = await Review.create({
+            ...pickReviewFields(req.body),
+            resort: resortId,
+            user: req.user._id
+        });
         res.status(201).json( {success: true, data: review});
     } catch (error) {
         res.status(400).json( {success: false, message: error.message});
@@ -46,7 +91,7 @@ exports.updateReview = async (req, res) => {
         if (!review){
             return res.status(404).json({ success: false, message: 'Review not found.'});
         }
-        Object.assign(review, req)
+        Object.assign(review, pickReviewFields(req.body));
         await review.save();
         res.json({ success: true, data: review});
     } catch (error) {

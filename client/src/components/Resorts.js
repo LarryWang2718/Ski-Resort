@@ -46,16 +46,15 @@ function Resorts() {
   }
 
   return (
-    <div style={{ background: 'transparent' }}>
-      <h1 style={{ 
-        color: 'white', 
-        marginTop: '3.5rem', 
-        marginBottom: '3.5rem',
-        textAlign: 'center'
-      }}>Ski Resorts</h1>
+    <div className="page-shell">
+      <div className="page-header">
+        <div className="page-kicker">Directory</div>
+        <h1>Ski Resorts</h1>
+        <p>Search the catalog by name or country and jump straight into trail and lift detail.</p>
+      </div>
       
-      <div className="card">
-        <form onSubmit={handleSearch}>
+      <div className="card filter-panel">
+        <form onSubmit={handleSearch} className="search-form">
           <input
             type="text"
             placeholder="Search resorts..."
@@ -76,14 +75,14 @@ function Resorts() {
 
       <div className="grid">
         {resorts.map((resort) => (
-          <div key={resort._id} className="card">
+          <div key={resort._id} className="card resort-card">
             <h3>{resort.name}</h3>
-            <p><strong>Country:</strong> {resort.location_country}</p>
+            <p className="meta-row"><strong>Country:</strong> {resort.location_country}</p>
             {resort.location_region && (
-              <p><strong>Region:</strong> {resort.location_region}</p>
+              <p className="meta-row"><strong>Region:</strong> {resort.location_region}</p>
             )}
             {resort.location_coordinate && (
-              <p>
+              <p className="meta-row">
                 <strong>Location:</strong> {parseFloat(resort.location_coordinate.lat).toFixed(4)}, {parseFloat(resort.location_coordinate.long).toFixed(4)}
               </p>
             )}
@@ -95,28 +94,21 @@ function Resorts() {
       </div>
 
       {totalPages > 1 && (
-        <div style={{ 
-          textAlign: 'center', 
-          marginTop: '2rem', 
-          background: 'transparent',
-          padding: '1rem 0'
-        }}>
+        <div className="pagination-bar">
           <button
             className="btn btn-secondary"
             onClick={() => setPage(page - 1)}
             disabled={page === 1}
-            style={{ marginRight: '1rem' }}
           >
             Previous
           </button>
-          <span style={{ color: 'white', margin: '0 1rem' }}>
+          <span className="pagination-copy">
             Page {page} of {totalPages}
           </span>
           <button
             className="btn btn-secondary"
             onClick={() => setPage(page + 1)}
             disabled={page === totalPages}
-            style={{ marginLeft: '1rem' }}
           >
             Next
           </button>

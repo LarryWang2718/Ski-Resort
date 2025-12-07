@@ -20,6 +20,7 @@ Thumbs.db
 
 # Data and output files
 server/db
+client/build/
 client/public/background.jpg
 client/public/logo.png
 

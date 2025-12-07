@@ -39,15 +39,16 @@ function ResortDetail() {
   }
 
   return (
-    <div>
-      <div className="card">
+    <div className="page-shell">
+      <div className="card detail-hero">
+        <div className="page-kicker">Resort Detail</div>
         <h1>{resort.name}</h1>
-        <p><strong>Country:</strong> {resort.location_country}</p>
+        <p className="meta-row"><strong>Country:</strong> {resort.location_country}</p>
         {resort.location_region && (
-          <p><strong>Region:</strong> {resort.location_region}</p>
+          <p className="meta-row"><strong>Region:</strong> {resort.location_region}</p>
         )}
         {resort.location_coordinate && (
-          <p>
+          <p className="meta-row">
             <strong>Location:</strong> {parseFloat(resort.location_coordinate.lat).toFixed(4)}, {parseFloat(resort.location_coordinate.long).toFixed(4)}
           </p>
         )}
@@ -77,48 +78,26 @@ function ResortDetail() {
       </div>
 
       {/* Interactive Map Section */}
-      <div style={{ marginTop: '2rem', marginBottom: '2rem' }}>
-        <h2 style={{ color: 'white', marginBottom: '1rem' }}>Interactive Map</h2>
-        <div className="card" style={{ padding: '1.5rem' }}>
+      <div className="detail-section">
+        <h2 className="section-title">Interactive Map</h2>
+        <div className="card map-panel">
           {/* Map Controls */}
-          <div style={{ 
-            marginBottom: '1rem', 
-            display: 'flex', 
-            gap: '1.5rem', 
-            flexWrap: 'wrap',
-            alignItems: 'center'
-          }}>
-            <label style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '0.5rem', 
-              cursor: 'pointer',
-              color: '#333',
-              fontSize: '1rem'
-            }}>
+          <div className="map-controls">
+            <label className="toggle-pill">
               <input
                 type="checkbox"
                 checked={showTrails}
                 onChange={(e) => setShowTrails(e.target.checked)}
-                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
               />
-              <span style={{ fontWeight: '500', color: '#333' }}>Trails ({trails.length})</span>
+              <span>Trails ({trails.length})</span>
             </label>
-            <label style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '0.5rem', 
-              cursor: 'pointer',
-              color: '#333',
-              fontSize: '1rem'
-            }}>
+            <label className="toggle-pill">
               <input
                 type="checkbox"
                 checked={showLifts}
                 onChange={(e) => setShowLifts(e.target.checked)}
-                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
               />
-              <span style={{ fontWeight: '500', color: '#333' }}>Lifts ({lifts.length})</span>
+              <span>Lifts ({lifts.length})</span>
             </label>
           </div>
 
@@ -132,79 +111,39 @@ function ResortDetail() {
           />
 
           {/* Map Legend */}
-          <div style={{ 
-            marginTop: '1rem', 
-            padding: '1rem', 
-            background: 'rgba(255, 255, 255, 0.95)', 
-            borderRadius: '4px',
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '1.5rem',
-            fontSize: '1rem'
-          }}>
-            <div style={{ color: '#333', fontWeight: 'bold', width: '100%', marginBottom: '0.5rem' }}>
+          <div className="map-legend">
+            <div className="legend-title">
               Legend:
             </div>
             
             {/* Resort Center */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div style={{
-                background: '#000000',
-                width: '12px',
-                height: '12px',
-                borderRadius: '50%',
-                border: '2px solid #333'
-              }} />
-              <span style={{ color: '#333' }}>Resort Center</span>
+            <div className="legend-item">
+              <div className="legend-dot" />
+              <span>Resort Center</span>
             </div>
             
             {/* Trail Difficulties */}
             {showTrails && (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{
-                    background: '#2E7D32',
-                    width: '14px',
-                    height: '3px',
-                    borderRadius: '2px'
-                  }} />
-                  <span style={{ color: '#333' }}>Easy (Green)</span>
+                <div className="legend-item">
+                  <div className="legend-line legend-easy" />
+                  <span>Easy (Green)</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{
-                    background: '#1976D2',
-                    width: '14px',
-                    height: '3px',
-                    borderRadius: '2px'
-                  }} />
-                  <span style={{ color: '#333' }}>Intermediate (Blue)</span>
+                <div className="legend-item">
+                  <div className="legend-line legend-intermediate" />
+                  <span>Intermediate (Blue)</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{
-                    background: '#212121',
-                    width: '14px',
-                    height: '3px',
-                    borderRadius: '2px'
-                  }} />
-                  <span style={{ color: '#333' }}>Advanced (Black)</span>
+                <div className="legend-item">
+                  <div className="legend-line legend-advanced" />
+                  <span>Advanced (Black)</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{
-                    background: '#000000',
-                    width: '14px',
-                    height: '4px',
-                    borderRadius: '2px'
-                  }} />
-                  <span style={{ color: '#333' }}>Expert/Double Black</span>
+                <div className="legend-item">
+                  <div className="legend-line legend-expert" />
+                  <span>Expert/Double Black</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{
-                    background: '#B71C1C',
-                    width: '14px',
-                    height: '3px',
-                    borderRadius: '2px'
-                  }} />
-                  <span style={{ color: '#333' }}>Extreme/Out-of-Bounds (Red)</span>
+                <div className="legend-item">
+                  <div className="legend-line legend-extreme" />
+                  <span>Extreme/Out-of-Bounds (Red)</span>
                 </div>
               </>
             )}
@@ -212,41 +151,21 @@ function ResortDetail() {
             {/* Lift Types */}
             {showLifts && (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{
-                    background: 'repeating-linear-gradient(to right, #FF9800 0px, #FF9800 4px, transparent 4px, transparent 8px)',
-                    width: '14px',
-                    height: '3px',
-                    borderRadius: '2px'
-                  }} />
-                  <span style={{ color: '#333' }}>Gondola/Tram/Cable Car (Orange, Dashed)</span>
+                <div className="legend-item">
+                  <div className="legend-line legend-gondola" />
+                  <span>Gondola/Tram/Cable Car</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{
-                    background: 'repeating-linear-gradient(to right, #4ECDC4 0px, #4ECDC4 4px, transparent 4px, transparent 8px)',
-                    width: '14px',
-                    height: '3px',
-                    borderRadius: '2px'
-                  }} />
-                  <span style={{ color: '#333' }}>Chairlift (Aqua, Dashed)</span>
+                <div className="legend-item">
+                  <div className="legend-line legend-chair" />
+                  <span>Chairlift</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{
-                    background: 'repeating-linear-gradient(to right, #8E24AA 0px, #8E24AA 4px, transparent 4px, transparent 8px)',
-                    width: '14px',
-                    height: '3px',
-                    borderRadius: '2px'
-                  }} />
-                  <span style={{ color: '#333' }}>Surface Lift (Purple, Dashed)</span>
+                <div className="legend-item">
+                  <div className="legend-line legend-surface" />
+                  <span>Surface Lift</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{
-                    background: 'repeating-linear-gradient(to right, #9E9E9E 0px, #9E9E9E 4px, transparent 4px, transparent 8px)',
-                    width: '14px',
-                    height: '3px',
-                    borderRadius: '2px'
-                  }} />
-                  <span style={{ color: '#333' }}>Closed/Maintenance (Gray, Dashed)</span>
+                <div className="legend-item">
+                  <div className="legend-line legend-closed" />
+                  <span>Closed/Maintenance</span>
                 </div>
               </>
             )}
@@ -254,44 +173,44 @@ function ResortDetail() {
         </div>
       </div>
 
-      <h2 style={{ color: 'white', marginTop: '2rem' }}>Trails</h2>
+      <h2 className="section-title">Trails</h2>
       <div className="grid">
         {trails.map((trail) => (
-          <div key={trail._id} className="card">
+          <div key={trail._id} className="card detail-card">
             <h3>{trail.name}</h3>
-            <p><strong>Difficulty:</strong> {trail.difficulty}</p>
-            <p><strong>Status:</strong> {trail.status}</p>
+            <p className="meta-row"><strong>Difficulty:</strong> {trail.difficulty}</p>
+            <p className="meta-row"><strong>Status:</strong> {trail.status}</p>
             {trail.pisteType && (
-              <p><strong>Type:</strong> {trail.pisteType}</p>
+              <p className="meta-row"><strong>Type:</strong> {trail.pisteType}</p>
             )}
             {trail.grooming && (
-              <p><strong>Grooming:</strong> {trail.grooming}</p>
+              <p className="meta-row"><strong>Grooming:</strong> {trail.grooming}</p>
             )}
             {trail.lit && (
-              <p><strong>Night Skiing:</strong> {trail.lit ? 'Yes' : 'No'}</p>
+              <p className="meta-row"><strong>Night Skiing:</strong> {trail.lit ? 'Yes' : 'No'}</p>
             )}
           </div>
         ))}
       </div>
 
-      <h2 style={{ color: 'white', marginTop: '2rem' }}>Lifts</h2>
+      <h2 className="section-title">Lifts</h2>
       <div className="grid">
         {lifts.map((lift) => (
-          <div key={lift._id} className="card">
+          <div key={lift._id} className="card detail-card">
             <h3>{lift.name}</h3>
-            <p><strong>Type:</strong> {lift.aerialway}</p>
-            <p><strong>Status:</strong> {lift.status}</p>
+            <p className="meta-row"><strong>Type:</strong> {lift.aerialway}</p>
+            <p className="meta-row"><strong>Status:</strong> {lift.status}</p>
             {lift.capacity && (
-              <p><strong>Capacity:</strong> {lift.capacity} people/hour</p>
+              <p className="meta-row"><strong>Capacity:</strong> {lift.capacity} people/hour</p>
             )}
             {lift.duration && (
-              <p><strong>Duration:</strong> {lift.duration} minutes</p>
+              <p className="meta-row"><strong>Duration:</strong> {lift.duration} minutes</p>
             )}
             {lift.lit && (
-              <p><strong>Night Operation:</strong> {lift.lit ? 'Yes' : 'No'}</p>
+              <p className="meta-row"><strong>Night Operation:</strong> {lift.lit ? 'Yes' : 'No'}</p>
             )}
             {lift.oneway && (
-              <p><strong>One Way:</strong> {lift.oneway ? 'Yes' : 'No'}</p>
+              <p className="meta-row"><strong>One Way:</strong> {lift.oneway ? 'Yes' : 'No'}</p>
             )}
           </div>
         ))}

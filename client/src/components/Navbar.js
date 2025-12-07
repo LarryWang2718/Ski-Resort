@@ -17,10 +17,10 @@ function Navbar() {
       <div className="navbar-content">
         <Link to="/" className="logo" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '-35px' }}>
           {logoError ? (
-            <span>Ski Resort Finder</span>
+            <span className="logo-text">Ski Resort Finder</span>
           ) : (
             <img 
-              src={`${process.env.PUBLIC_URL}/logo.png`} 
+              src={`${process.env.PUBLIC_URL}/logo.jpg`} 
               alt="Ski Resort Finder Logo" 
               style={{ height: '40px', width: 'auto' }}
               onError={() => setLogoError(true)}
