@@ -8,7 +8,7 @@ const { resolveResort, resolveCountry, knownCountries, listCountries } = require
 const { PASSENGER_LIFTS } = require('./features');
 const {
   QUERY_TIME_MS, RESORT_FIELDS, ToolInputError, clamp, optionalNumber, compact, round1,
-  resortRow, otherMatches, requireResort
+  resortRow, otherMatches, refLabel, requireResort
 } = require('./shared');
 
 const SORT_FIELDS = ['rank', 'slope_km', 'top_elevation_m', 'vertical_m', 'lifts', 'snowfall_cm'];
@@ -161,7 +161,11 @@ const getResortDetails = {
     required: ['resorts'],
     additionalProperties: false
   },
-  label: (input) => `Looking up ${(input.resorts || []).slice(0, 4).join(', ') || 'resorts'}`,
+  label: (input) => {
+    const refs = Array.isArray(input.resorts) ? input.resorts.slice(0, 4) : [];
+    const names = refs.map(refLabel);
+    return names.length > 0 && names.every(Boolean) ? `Looking up ${names.join(', ')}` : `Looking up ${refs.length === 1 ? 'the resort' : `${refs.length} resorts`}`;
+  },
 
   async run(input) {
     const refs = (Array.isArray(input.resorts) ? input.resorts : []).map(stringParam).filter(Boolean).slice(0, 4);
@@ -171,7 +175,7 @@ const getResortDetails = {
     const found = details.filter((detail) => !detail.error);
     return {
       result: { resorts: details },
-      summary: `${found.length} of ${refs.length} found`,
+      summary: found.length > 0 ? found.map((resort) => resort.name).join(', ') : 'not found',
       resorts: found.map(({ id, name, country, region, slope_km }) => compact({ id, name, country, region, slope_km }))
     };
   }
@@ -193,7 +197,7 @@ const findResortsNear = {
     additionalProperties: false
   },
   label: (input) => `Finding resorts within ${clamp(input.radius_km, { min: 1, max: 250, fallback: 50 })} km`
-    + (input.resort ? ` of ${input.resort}` : ''),
+    + (refLabel(input.resort) ? ` of ${refLabel(input.resort)}` : ''),
 
   async run(input) {
     let origin;
@@ -237,7 +241,7 @@ const findResortsNear = {
         radius_km: radiusKm,
         resorts: rows
       },
-      summary: `${rows.length} found`,
+      summary: `${rows.length} found${origin.name ? ` near ${origin.name}` : ''}`,
       resorts: rows
     };
   }

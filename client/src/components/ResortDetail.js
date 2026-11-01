@@ -137,6 +137,13 @@ function ResortDetail() {
         <div className="page-kicker">{resort.rank ? `Ranked #${resort.rank}` : 'Resort'}</div>
         <h1>{resort.name}</h1>
         <p className="detail-location">{formatLocation(resort)}</p>
+        <Link
+          to={`/assistant?resort=${resort._id}`}
+          state={{ resortName: resort.name }}
+          className="btn btn-secondary btn-small detail-ask"
+        >
+          Ask about this resort
+        </Link>
       </header>
 
       {stats.length > 0 && (

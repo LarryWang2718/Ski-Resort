@@ -3,7 +3,7 @@ const Trail = require('../../models/Trail');
 const Lift = require('../../models/Lift');
 const { stringParam, containsText } = require('../../utils/query');
 const {
-  QUERY_TIME_MS, SYNTHETIC_TRAIL, SYNTHETIC_LIFT, clamp, compact, resortRow, otherMatches, requireResort
+  QUERY_TIME_MS, SYNTHETIC_TRAIL, SYNTHETIC_LIFT, clamp, compact, resortRow, otherMatches, refLabel, requireResort
 } = require('./shared');
 
 const DIFFICULTIES = ['novice', 'easy', 'intermediate', 'advanced', 'expert', 'freeride', 'extreme'];
@@ -66,7 +66,7 @@ const listTrails = {
     additionalProperties: false
   },
   label: (input) => ['Listing', input.lit === true && 'floodlit', input.difficulty, 'runs',
-    input.name && `named "${input.name}"`, input.resort && `at ${input.resort}`].filter(Boolean).join(' '),
+    input.name && `named "${input.name}"`, refLabel(input.resort) && `at ${refLabel(input.resort)}`].filter(Boolean).join(' '),
 
   async run(input) {
     const { resort, matchedBy, alternatives } = await requireResort(input.resort);
@@ -111,7 +111,7 @@ const listTrails = {
         runs,
         map_link: mapLink
       }),
-      summary: `${named.total} named runs`,
+      summary: `${named.total} named runs at ${resort.name}`,
       resorts: [resortRow(resort)],
       mapLink: mapLink && { href: mapLink, label: mapLinkLabel(filters) }
     };
@@ -133,7 +133,7 @@ const listLifts = {
     additionalProperties: false
   },
   label: (input) => ['Listing', input.type ? input.type.replace(/_/g, ' ') : '', 'lifts',
-    input.resort && `at ${input.resort}`].filter(Boolean).join(' '),
+    refLabel(input.resort) && `at ${refLabel(input.resort)}`].filter(Boolean).join(' '),
 
   async run(input) {
     const { resort, matchedBy, alternatives } = await requireResort(input.resort);
@@ -169,7 +169,7 @@ const listLifts = {
         unnamed: facet.unnamed[0]?.segments || 0,
         lifts
       }),
-      summary: `${total} lifts`,
+      summary: `${total} lifts at ${resort.name}`,
       resorts: [resortRow(resort)]
     };
   }

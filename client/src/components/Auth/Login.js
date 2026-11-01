@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { login, clearError } from '../../store/slices/authSlice';
 import { ErrorNotice } from '../Feedback';
 
@@ -12,13 +12,16 @@ function Login() {
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const { loading, error, isAuthenticated } = useSelector((state) => state.auth);
+  // Pages that need a login send people here and expect them back afterwards
+  const from = location.state?.from;
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/');
+      navigate(from ? `${from.pathname}${from.search}` : '/', { replace: true, state: from?.state });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, from]);
 
   // Don't carry this page's error over to the next page
   useEffect(() => () => dispatch(clearError()), [dispatch]);

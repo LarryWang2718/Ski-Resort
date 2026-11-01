@@ -11,6 +11,8 @@ import ResortDetail from './components/ResortDetail';
 import Login from './components/Auth/Login';
 import Register from './components/Auth/Register';
 import Profile from './components/Auth/Profile';
+import AssistantPage from './components/Assistant/AssistantPage';
+import RequireAuth from './components/RequireAuth';
 import ErrorBoundary from './components/ErrorBoundary';
 import { EmptyNotice } from './components/Feedback';
 import './App.css';
@@ -43,6 +45,8 @@ function Layout() {
             <Route path="/resorts/:id" element={<ResortDetail />} />
             <Route path="/trails" element={<Trails />} />
             <Route path="/lifts" element={<Lifts />} />
+            <Route path="/assistant" element={<RequireAuth><AssistantPage /></RequireAuth>} />
+            <Route path="/assistant/:conversationId" element={<RequireAuth><AssistantPage /></RequireAuth>} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/profile" element={<Profile />} />

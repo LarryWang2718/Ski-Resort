@@ -30,6 +30,7 @@ function Navbar() {
           <li><NavLink to="/resorts" className={navClass}>Resorts</NavLink></li>
           <li><NavLink to="/trails" className={navClass}>Trails</NavLink></li>
           <li><NavLink to="/lifts" className={navClass}>Lifts</NavLink></li>
+          <li><NavLink to="/assistant" className={navClass}>Assistant</NavLink></li>
           {isAuthenticated ? (
             <>
               <li><NavLink to="/profile" className={navClass}>Profile</NavLink></li>

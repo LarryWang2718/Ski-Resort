@@ -33,7 +33,10 @@ api.interceptors.request.use((config) => {
 });
 
 // Registered by the store so a rejected token logs the user out (avoids a circular import)
+let unauthorizedHandler = () => {};
+
 export const onUnauthorized = (handler) => {
+  unauthorizedHandler = handler;
   api.interceptors.response.use(undefined, (error) => {
     if (error.response?.status === 401 && error.config?.headers?.Authorization) {
       handler(error.response.data?.message);
@@ -41,6 +44,9 @@ export const onUnauthorized = (handler) => {
     return Promise.reject(error);
   });
 };
+
+// For requests made with fetch() instead of axios (the assistant's streamed answers)
+export const handleUnauthorized = (message) => unauthorizedHandler(message);
 
 // A message that is safe and useful to show to the user
 export const getErrorMessage = (error) => {

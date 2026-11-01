@@ -48,6 +48,9 @@ const resortRow = (resort) => compact({
   snowfall_cm: resort.stats?.snowfall_cm
 });
 
+// For activity labels: a name the model typed, but not an id (the result summary names the resort)
+const refLabel = (ref) => (typeof ref === 'string' && !/^[0-9a-f]{24}$/i.test(ref.trim()) ? ref.trim() : undefined);
+
 const otherMatches = (alternatives) => (alternatives.length > 0
   ? alternatives.map((resort) => ({ id: String(resort._id), name: resort.name }))
   : undefined);
@@ -75,5 +78,6 @@ module.exports = {
   round1,
   resortRow,
   otherMatches,
+  refLabel,
   requireResort
 };

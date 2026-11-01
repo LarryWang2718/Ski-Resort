@@ -93,6 +93,9 @@ test('tool calls get readable activity labels', () => {
     'Searching resorts · Austria · ≥200 km of slopes'
   );
   assert.equal(describeToolCall('list_trails', { resort: 'Chamonix', difficulty: 'advanced' }), 'Listing advanced runs at Chamonix');
+  assert.equal(describeToolCall('list_trails', { resort: '690b060fb76e84f97dfdecbb', lit: true }), 'Listing floodlit runs');
+  assert.equal(describeToolCall('get_resort_details', { resorts: ['Verbier', 'Zermatt'] }), 'Looking up Verbier, Zermatt');
+  assert.equal(describeToolCall('get_resort_details', { resorts: ['690b060fb76e84f97dfdecbb'] }), 'Looking up the resort');
   assert.equal(describeToolCall('no_such_tool', {}), 'no_such_tool');
 });
 

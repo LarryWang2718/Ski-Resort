@@ -34,6 +34,9 @@ jobs:
           cache: npm
           cache-dependency-path: client/package-lock.json
       - run: npm ci
+      - run: npm test -- --watchAll=false
+        env:
+          CI: true
       # CI=true makes lint warnings fail the build
       - run: npm run build
         env:
