@@ -7,7 +7,7 @@
     "dev": "nodemon server.js",
     "migrate": "node scripts/migrate.js",
     "import": "node scripts/importData.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test"
   },
   "keywords": [],
   "author": "",

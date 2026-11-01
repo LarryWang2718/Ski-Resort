@@ -4,226 +4,134 @@ const router = express.Router();
 const Resort = require('../models/Resort');
 const Trail = require('../models/Trail');
 const Lift = require('../models/Lift');
+const asyncHandler = require('../utils/asyncHandler');
+const HttpError = require('../utils/httpError');
+const { parsePagination, stringParam, containsText } = require('../utils/query');
 
-// GET /api/resorts - Get all resorts with pagination and filtering
-router.get('/', async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
-    const skip = (page - 1) * limit;
+// `members` duplicates the trail/lift references and can hold ~1,000 ids per resort
+const RESORT_FIELDS = '-members -__v';
 
-    // Build filter object
-    const filter = {};
-    
-    if (req.query.country) {
-      filter.location_country = { $regex: req.query.country, $options: 'i' };
-    }
-    
-    if (req.query.region) {
-      filter.location_region = { $regex: req.query.region, $options: 'i' };
-    }
-    
-    if (req.query.name) {
-      filter.name = { $regex: req.query.name, $options: 'i' };
-    }
+// ?q= matches name, region or country; ?country= and ?region= are exact (dropdown) values
+const buildResortFilter = (query) => {
+  const filter = {};
+  const q = stringParam(query.q);
+  const country = stringParam(query.country);
+  const region = stringParam(query.region);
 
-    // Get resorts with pagination, sorted by rank (numeric)
-    // Use aggregation to convert rank string to number for proper sorting
-    const resorts = await Resort.aggregate([
-      { $match: filter },
-      {
-        $addFields: {
-          rankNum: {
-            $cond: {
-              if: { $or: [{ $eq: ["$rank", null] }, { $eq: ["$rank", ""] }] },
-              then: 999999,
-              else: {
-                $convert: {
-                  input: {
-                    $replaceAll: {
-                      input: { $toString: "$rank" },
-                      find: ",",
-                      replacement: ""
-                    }
-                  },
-                  to: "int",
-                  onError: 999999,
-                  onNull: 999999
-                }
-              }
-            }
-          }
-        }
-      },
-      { $sort: { rankNum: 1 } },
-      { $skip: skip },
-      { $limit: limit },
-      { $project: { rankNum: 0 } }
-    ]);
-
-    // Get total count for pagination
-    const total = await Resort.countDocuments(filter);
-
-    res.json({
-      success: true,
-      data: resorts,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit)
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching resorts',
-      error: error.message
-    });
+  if (q) {
+    const pattern = containsText(q);
+    filter.$or = [
+      { name: pattern },
+      { location_region: pattern },
+      { location_country: pattern }
+    ];
   }
-});
+  if (country) filter.location_country = country;
+  if (region) filter.location_region = region;
 
-// GET /api/resorts/search - Search resorts
-router.get('/search', async (req, res) => {
-  try {
-    const { q, country, region, limit = 10 } = req.query;
-    
-    const filter = {};
-    
-    if (q) {
-      filter.$or = [
-        { name: { $regex: q, $options: 'i' } },
-        { location_country: { $regex: q, $options: 'i' } },
-        { location_region: { $regex: q, $options: 'i' } }
-      ];
-    }
-    
-    if (country) {
-      filter.location_country = { $regex: country, $options: 'i' };
-    }
-    
-    if (region) {
-      filter.location_region = { $regex: region, $options: 'i' };
-    }
+  return filter;
+};
 
-    // Get resorts sorted by rank (numeric)
-    const resorts = await Resort.aggregate([
-      { $match: filter },
-      {
-        $addFields: {
-          rankNum: {
-            $cond: {
-              if: { $or: [{ $eq: ["$rank", null] }, { $eq: ["$rank", ""] }] },
-              then: 999999,
-              else: {
-                $convert: {
-                  input: {
-                    $replaceAll: {
-                      input: { $toString: "$rank" },
-                      find: ",",
-                      replacement: ""
-                    }
-                  },
-                  to: "int",
-                  onError: 999999,
-                  onNull: 999999
-                }
-              }
-            }
-          }
-        }
-      },
-      { $sort: { rankNum: 1 } },
-      { $limit: parseInt(limit) },
-      { $project: { rankNum: 0 } }
-    ]);
+// GET /api/resorts - Resorts sorted by rank, with search, filters and pagination
+router.get('/', asyncHandler(async (req, res) => {
+  const { page, limit, skip } = parsePagination(req.query);
+  const filter = buildResortFilter(req.query);
 
-    res.json({
-      success: true,
-      data: resorts
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error searching resorts',
-      error: error.message
-    });
-  }
-});
+  const [resorts, total] = await Promise.all([
+    Resort.find(filter).select(RESORT_FIELDS).sort({ rank: 1 }).skip(skip).limit(limit).lean(),
+    Resort.countDocuments(filter)
+  ]);
+
+  res.json({
+    success: true,
+    data: resorts,
+    pagination: {
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit)
+    }
+  });
+}));
+
+// GET /api/resorts/filters - Countries with their regions, for filter dropdowns
+router.get('/filters', asyncHandler(async (req, res) => {
+  const countries = await Resort.aggregate([
+    { $group: { _id: { country: '$location_country', region: '$location_region' }, resorts: { $sum: 1 } } },
+    { $sort: { '_id.region': 1 } },
+    { $group: { _id: '$_id.country', regions: { $push: '$_id.region' }, resorts: { $sum: '$resorts' } } },
+    { $sort: { _id: 1 } }
+  ]);
+
+  res.json({
+    success: true,
+    data: countries.map(({ _id, regions, resorts }) => ({
+      country: _id,
+      resorts,
+      regions: regions.filter(Boolean)
+    }))
+  });
+}));
+
+// GET /api/resorts/search - Search resorts (top matches by rank, no pagination)
+router.get('/search', asyncHandler(async (req, res) => {
+  const { limit } = parsePagination(req.query, { defaultLimit: 10 });
+  const resorts = await Resort.find(buildResortFilter(req.query))
+    .select(RESORT_FIELDS)
+    .sort({ rank: 1 })
+    .limit(limit)
+    .lean();
+
+  res.json({
+    success: true,
+    data: resorts
+  });
+}));
 
 // GET /api/resorts/:id - Get specific resort with trails and lifts
-router.get('/:id', async (req, res) => {
-  try {
-    const resort = await Resort.findById(req.params.id);
-    
-    if (!resort) {
-      return res.status(404).json({
-        success: false,
-        message: 'Resort not found'
-      });
-    }
-
-    // Get trails and lifts for this resort
-    const trails = await Trail.find({ resort: req.params.id });
-    const lifts = await Lift.find({ resort: req.params.id });
-
-    res.json({
-      success: true,
-      data: {
-        resort,
-        trails,
-        lifts,
-        stats: {
-          totalTrails: trails.length,
-          totalLifts: lifts.length,
-          openTrails: trails.filter(t => t.status === 'open').length,
-          openLifts: lifts.filter(l => l.status === 'open').length
-        }
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching resort',
-      error: error.message
-    });
+router.get('/:id', asyncHandler(async (req, res) => {
+  const resort = await Resort.findById(req.params.id).select(RESORT_FIELDS).lean();
+  if (!resort) {
+    throw new HttpError(404, 'Resort not found');
   }
-});
+
+  const [trails, lifts] = await Promise.all([
+    Trail.find({ resort: resort._id }).sort({ name: 1 }).lean(),
+    Lift.find({ resort: resort._id }).sort({ name: 1 }).lean()
+  ]);
+
+  res.json({
+    success: true,
+    data: {
+      resort,
+      trails,
+      lifts,
+      stats: {
+        totalTrails: trails.length,
+        totalLifts: lifts.length
+      }
+    }
+  });
+}));
 
 // GET /api/resorts/:id/trails - Get trails for a specific resort
-router.get('/:id/trails', async (req, res) => {
-  try {
-    const trails = await Trail.find({ resort: req.params.id });
-    
-    res.json({
-      success: true,
-      data: trails
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching trails',
-      error: error.message
-    });
-  }
-});
+router.get('/:id/trails', asyncHandler(async (req, res) => {
+  const trails = await Trail.find({ resort: req.params.id }).sort({ name: 1 }).lean();
+
+  res.json({
+    success: true,
+    data: trails
+  });
+}));
 
 // GET /api/resorts/:id/lifts - Get lifts for a specific resort
-router.get('/:id/lifts', async (req, res) => {
-  try {
-    const lifts = await Lift.find({ resort: req.params.id });
-    
-    res.json({
-      success: true,
-      data: lifts
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching lifts',
-      error: error.message
-    });
-  }
-});
+router.get('/:id/lifts', asyncHandler(async (req, res) => {
+  const lifts = await Lift.find({ resort: req.params.id }).sort({ name: 1 }).lean();
+
+  res.json({
+    success: true,
+    data: lifts
+  });
+}));
 
 module.exports = router;

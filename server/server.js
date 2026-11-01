@@ -1,139 +1,49 @@
-const express = require('express');
+const path = require('path');
+// Load server/.env no matter which directory the process starts from
+require('dotenv').config({ path: path.join(__dirname, '.env'), quiet: true });
+
 const mongoose = require('mongoose');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
-require('dotenv').config();
-
-const app = express();
-app.disable('x-powered-by');
-
-const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:3000')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
-
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 300,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    success: false,
-    message: 'Too many requests, please try again later.'
-  }
-});
-
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    success: false,
-    message: 'Too many authentication attempts, please try again later.'
-  }
-});
-
-// Middleware
-app.use(helmet());
-app.use(cors({
-  origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(new Error('CORS origin not allowed'));
-  }
-}));
-app.use(morgan('combined'));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-app.use('/api', apiLimiter);
-
-// Database connection
+const validateEnv = require('./config/env');
 const connectDB = require('./config/database');
-connectDB();
+const app = require('./app');
 
-// Import models
-const User = require('./models/User');
-const Resort = require('./models/Resort');
-const Trail = require('./models/Trail');
-const Lift = require('./models/Lift');
-const Weather = require('./models/Weather');
+const SHUTDOWN_TIMEOUT_MS = 10000;
 
-console.log('All models loaded successfully!');
+const start = async () => {
+  validateEnv();
+  // Only accept traffic once the database is reachable
+  await connectDB();
 
-// Import routes
-const resortRoutes = require('./routes/resorts');
-const trailRoutes = require('./routes/trails');
-const liftRoutes = require('./routes/lifts');
-const authRoutes = require('./routes/auth');
-
-// Use routes
-app.use('/api/auth', authLimiter, authRoutes);
-app.use('/api/resorts', resortRoutes);
-app.use('/api/trails', trailRoutes);
-app.use('/api/lifts', liftRoutes);
-
-// API Documentation route
-app.get('/', (req, res) => {
-  res.json({
-    message: 'Ski Resort API is running!',
-    version: '1.0.0',
-    endpoints: {
-      resorts: {
-        'GET /api/resorts': 'Get all resorts with pagination and filtering',
-        'GET /api/resorts/:id': 'Get specific resort with trails and lifts',
-        'GET /api/resorts/:id/trails': 'Get trails for a specific resort',
-        'GET /api/resorts/:id/lifts': 'Get lifts for a specific resort',
-        'GET /api/resorts/search': 'Search resorts'
-      },
-      trails: {
-        'GET /api/trails': 'Get all trails with filtering and pagination',
-        'GET /api/trails/:id': 'Get specific trail',
-        'GET /api/trails/search': 'Search trails',
-        'GET /api/trails/stats/difficulty': 'Get trail difficulty statistics',
-        'GET /api/trails/stats/status': 'Get trail status statistics'
-      },
-      lifts: {
-        'GET /api/lifts': 'Get all lifts with filtering and pagination',
-        'GET /api/lifts/:id': 'Get specific lift',
-        'GET /api/lifts/search': 'Search lifts',
-        'GET /api/lifts/stats/aerialway': 'Get lift type statistics',
-        'GET /api/lifts/stats/status': 'Get lift status statistics'
-      }
-    },
-    examples: {
-      'Get resorts in Switzerland': '/api/resorts?country=Switzerland',
-      'Get easy trails': '/api/trails?difficulty=easy',
-      'Get gondola lifts': '/api/lifts?aerialway=gondola',
-      'Search for Verbier': '/api/resorts/search?q=Verbier'
-    }
+  const port = process.env.PORT || 5000;
+  const server = app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+    console.log(`API Documentation: http://localhost:${port}`);
   });
-});
 
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: `Route ${req.originalUrl} not found`
+  let shuttingDown = false;
+  const shutdown = (reason, exitCode = 0) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`${reason}: closing HTTP server and database connection`);
+
+    // Don't hang forever on a stuck request
+    setTimeout(() => process.exit(1), SHUTDOWN_TIMEOUT_MS).unref();
+
+    server.close(async () => {
+      await mongoose.connection.close();
+      process.exit(exitCode);
+    });
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('unhandledRejection', (reason) => {
+    console.error('Unhandled promise rejection:', reason);
+    shutdown('Unhandled rejection', 1);
   });
-});
+};
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    success: false,
-    message: 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong!'
-  });
-});
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`API Documentation: http://localhost:${PORT}`);
+start().catch((error) => {
+  console.error('Failed to start server:', error.message);
+  process.exit(1);
 });

@@ -1,206 +1,200 @@
-// Load environment variables
+// Rebuilds the resorts, trails and lifts collections from the merged OSM data file.
+// Usage: npm run import [-- path/to/ski-resorts-with-members.json]
+//
+// Everything is written to *_import staging collections first and only swapped in
+// once the whole import has succeeded, so a failed run leaves the live data untouched.
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../.env') });
+require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true });
 
-const mongoose = require('mongoose');
 const fs = require('fs');
-
-// Import models
+const mongoose = require('mongoose');
+const connectDB = require('../config/database');
 const Resort = require('../models/Resort');
 const Trail = require('../models/Trail');
 const Lift = require('../models/Lift');
 
-// Database connection
-const connectDB = require('../config/database');
+const DATA_FILE = process.argv[2] || path.join(__dirname, '../db/ski-resorts-with-members.json');
+const BATCH_SIZE = 1000;
+const MODELS = [Resort, Trail, Lift];
 
-const importData = async () => {
-  try {
-    // Connect to MongoDB
-    await connectDB();
-    console.log('Connected to MongoDB');
+const stagingName = (Model) => `${Model.collection.collectionName}_import`;
 
-    // Read the JSON file
-    const dataPath = path.join(__dirname, '../db/ski-resorts-with-members.json');
-    const rawData = fs.readFileSync(dataPath, 'utf8');
-    const resortsData = JSON.parse(rawData);
+const toNumber = (value) => {
+  const number = parseFloat(value);
+  return Number.isFinite(number) ? number : null;
+};
 
-    console.log(`Found ${resortsData.length} resorts to import`);
+// Full way geometry for the map, plus its average point for legacy single-point fields
+const toCoordinates = (member) => {
+  const coordinates = (member.geometry || [])
+    .map((point) => ({ longitude: toNumber(point.lon), latitude: toNumber(point.lat) }))
+    .filter((point) => point.longitude !== null && point.latitude !== null);
 
-    // Clear existing data
-    await mongoose.connection.dropCollection('resorts').catch(() => {});
-    await mongoose.connection.dropCollection('trails').catch(() => {});
-    await mongoose.connection.dropCollection('lifts').catch(() => {});
-    console.log('Cleared existing data');
+  if (coordinates.length === 0) {
+    return { coordinates, longitude: toNumber(member.center?.lon), latitude: toNumber(member.center?.lat) };
+  }
 
-    let totalTrails = 0;
-    let totalLifts = 0;
+  return {
+    coordinates,
+    longitude: coordinates.reduce((sum, point) => sum + point.longitude, 0) / coordinates.length,
+    latitude: coordinates.reduce((sum, point) => sum + point.latitude, 0) / coordinates.length
+  };
+};
 
-    // Process each resort
-    for (let i = 0; i < resortsData.length; i++) {
-      const resortData = resortsData[i];
-      console.log(`Processing resort ${i + 1}/${resortsData.length}: ${resortData.name}`);
+// OSM ways become lifts (aerialway) or trails (piste); nodes and stations are skipped.
+// OSM rarely records whether a run is open, so a missing status stays 'unknown'.
+const toMember = (member, resortId) => {
+  if (member.type !== 'way') return null;
 
-      // Create resort document (without members array for now)
-      const resortDoc = {
-        rank: parseInt(String(resortData.rank).replace(/,/g, ''), 10) || null,
-        name: resortData.name,
-        rating: resortData.rating,
-        url: resortData.url,
-        location_coordinate: resortData.location_coordinate,
-        location_country: resortData.location_country,
-        location_region: resortData.location_region,
-        elevation_top_m: resortData.elevation_top_m,
-        elevation_difference_m: resortData.elevation_difference_m,
-        total_slope_length_km: resortData.total_slope_length_km,
-        number_of_lifts: resortData.number_of_lifts,
-        number_of_slopes: resortData.number_of_slopes,
-        annual_snowfall_cm: resortData.annual_snowfall_cm,
-        number_of_matches: resortData.number_of_matches,
-        members: [] // Will be populated after creating trails and lifts
-      };
+  const tags = member.tags || {};
+  const shared = { description: tags.description || '', resort: resortId, ...toCoordinates(member) };
 
-      // Save resort and get its ObjectId
-      const resort = new Resort(resortDoc);
-      const savedResort = await resort.save();
-      const resortId = savedResort._id;
-
-      // Process members (trails and lifts)
-      if (resortData.members && Array.isArray(resortData.members)) {
-        for (const member of resortData.members) {
-          try {
-            // Only process 'way' elements, skip 'node' elements (stations, pylons, etc.)
-            if (member.type !== 'way') {
-              continue;
-            }
-
-            // Extract full geometry path from way element
-            let coordinates = [];
-            let longitude = null;
-            let latitude = null;
-            
-            if (member.geometry && Array.isArray(member.geometry) && member.geometry.length > 0) {
-              // Convert geometry array to coordinates format: [{longitude, latitude}, ...]
-              coordinates = member.geometry.map(point => ({
-                longitude: parseFloat(point.lon),
-                latitude: parseFloat(point.lat)
-              })).filter(coord => !isNaN(coord.longitude) && !isNaN(coord.latitude));
-              
-              // Calculate center point as average of all coordinates
-              if (coordinates.length > 0) {
-                const sumLon = coordinates.reduce((sum, coord) => sum + coord.longitude, 0);
-                const sumLat = coordinates.reduce((sum, coord) => sum + coord.latitude, 0);
-                longitude = sumLon / coordinates.length;
-                latitude = sumLat / coordinates.length;
-              }
-            } else if (member.center) {
-              // Fallback to center if geometry not available
-              longitude = member.center.lon ? parseFloat(member.center.lon) : null;
-              latitude = member.center.lat ? parseFloat(member.center.lat) : null;
-            }
-
-            // Determine if this is a trail or lift based on tags
-            const tags = member.tags || {};
-            let memberType = null;
-            let memberData = null;
-
-            // Check if it's a lift (aerialway)
-            if (tags.aerialway && tags.aerialway !== 'station') {
-              memberType = 'lift';
-              memberData = {
-                name: tags.name || `Lift ${member.id}`,
-                aerialway: tags.aerialway,
-                capacity: tags['aerialway:capacity'] ? parseInt(tags['aerialway:capacity']) : null,
-                duration: tags['aerialway:duration'] ? parseFloat(tags['aerialway:duration']) : null,
-                status: tags.operational_status || tags['aerialway:status'] || 'open',
-                oneway: tags.oneway === 'yes',
-                lit: tags.lit === 'yes',
-                length: tags['aerialway:length'] ? parseFloat(tags['aerialway:length']) : null,
-                description: tags.description || '',
-                coordinates: coordinates, // Full coordinate path for map display
-                longitude: longitude,
-                latitude: latitude, // Center point for legacy compatibility
-                resort: resortId
-              };
-            }
-            // Check if it's a trail (piste)
-            else if (tags['piste:type'] || tags.piste) {
-              memberType = 'trail';
-              memberData = {
-                name: tags.name || `Trail ${member.id}`,
-                pisteType: tags['piste:type'] || tags.piste,
-                difficulty: tags['piste:difficulty'] || 'unknown',
-                grooming: tags['piste:grooming'] || 'unknown',
-                status: tags['piste:status'] || 'open',
-                lit: tags['piste:lit'] === 'yes',
-                oneway: tags['piste:oneway'] === 'yes',
-                abandoned: tags['piste:abandoned'] === 'yes',
-                gladed: tags.gladed === 'yes',
-                patrolled: tags.patrolled !== 'no',
-                groomingPriority: tags['piste:grooming:priority'] ? parseInt(tags['piste:grooming:priority']) : null,
-                description: tags.description || '',
-                coordinates: coordinates, // Full coordinate path for map display
-                longitude: longitude,
-                latitude: latitude, // Center point for legacy compatibility
-                resort: resortId
-              };
-            }
-
-            // Save the member if we determined its type
-            if (memberType && memberData) {
-              let savedMember;
-              if (memberType === 'lift') {
-                const lift = new Lift(memberData);
-                savedMember = await lift.save();
-                totalLifts++;
-              } else if (memberType === 'trail') {
-                const trail = new Trail(memberData);
-                savedMember = await trail.save();
-                totalTrails++;
-              }
-
-              // Add reference to resort's members array
-              if (savedMember) {
-                resort.members.push({
-                  refId: savedMember._id,
-                  refType: memberType
-                });
-              }
-            }
-          } catch (error) {
-            console.error(`Error processing member ${member.id}:`, error.message);
-          }
-        }
-
-        // Update resort with the members array
-        await Resort.findByIdAndUpdate(resortId, { members: resort.members });
+  if (tags.aerialway && tags.aerialway !== 'station') {
+    return {
+      Model: Lift,
+      data: {
+        ...shared,
+        name: tags.name || `Lift ${member.id}`,
+        aerialway: tags.aerialway,
+        capacity: toNumber(tags['aerialway:capacity']),
+        duration: toNumber(tags['aerialway:duration']),
+        status: tags.operational_status || tags['aerialway:status'] || 'unknown',
+        oneway: tags.oneway === 'yes',
+        lit: tags.lit === 'yes',
+        length: toNumber(tags['aerialway:length'])
       }
+    };
+  }
 
-      console.log(`Completed resort ${i + 1}: ${resortData.name} (${resort.members.length} members)`);
+  if (tags['piste:type'] || tags.piste) {
+    return {
+      Model: Trail,
+      data: {
+        ...shared,
+        name: tags.name || `Trail ${member.id}`,
+        pisteType: tags['piste:type'] || tags.piste,
+        difficulty: tags['piste:difficulty'] || 'unknown',
+        grooming: tags['piste:grooming'] || 'unknown',
+        status: tags['piste:status'] || 'unknown',
+        lit: tags['piste:lit'] === 'yes',
+        oneway: tags['piste:oneway'] === 'yes',
+        abandoned: tags['piste:abandoned'] === 'yes',
+        gladed: tags.gladed === 'yes',
+        patrolled: tags.patrolled !== 'no',
+        groomingPriority: toNumber(tags['piste:grooming:priority'])
+      }
+    };
+  }
+
+  return null;
+};
+
+// Cast and validate through the Mongoose model so staged documents match the schema
+const toDocument = (Model, data) => {
+  const doc = new Model(data);
+  const error = doc.validateSync();
+  if (error) throw error;
+  return doc.toObject();
+};
+
+const buildDocuments = (resortsData) => {
+  const docs = new Map(MODELS.map((Model) => [Model, []]));
+  let skipped = 0;
+
+  for (const resortData of resortsData) {
+    const resortId = new mongoose.Types.ObjectId();
+    const members = [];
+
+    for (const member of resortData.members || []) {
+      const mapped = toMember(member, resortId);
+      if (!mapped) continue;
+      try {
+        const doc = toDocument(mapped.Model, mapped.data);
+        docs.get(mapped.Model).push(doc);
+        members.push({ refId: doc._id, refType: mapped.Model === Lift ? 'lift' : 'trail' });
+      } catch (error) {
+        skipped++;
+        console.warn(`Skipping member ${member.id} of ${resortData.name}: ${error.message}`);
+      }
     }
 
-    console.log('\n=== Import Summary ===');
-    console.log(`Total resorts imported: ${resortsData.length}`);
-    console.log(`Total trails created: ${totalTrails}`);
-    console.log(`Total lifts created: ${totalLifts}`);
+    docs.get(Resort).push(toDocument(Resort, {
+      _id: resortId,
+      rank: parseInt(String(resortData.rank).replace(/,/g, ''), 10) || null,
+      name: resortData.name,
+      rating: resortData.rating,
+      url: resortData.url,
+      location_coordinate: resortData.location_coordinate,
+      location_country: resortData.location_country,
+      location_region: resortData.location_region,
+      elevation_top_m: resortData.elevation_top_m,
+      elevation_difference_m: resortData.elevation_difference_m,
+      total_slope_length_km: resortData.total_slope_length_km,
+      number_of_lifts: resortData.number_of_lifts,
+      number_of_slopes: resortData.number_of_slopes,
+      annual_snowfall_cm: resortData.annual_snowfall_cm,
+      number_of_matches: resortData.number_of_matches,
+      members
+    }));
+  }
 
-    // Verify the import
-    const resortCount = await Resort.countDocuments();
-    const trailCount = await Trail.countDocuments();
-    const liftCount = await Lift.countDocuments();
+  return { docs, skipped };
+};
 
-    console.log('\n=== Database Verification ===');
-    console.log(`Resorts in database: ${resortCount}`);
-    console.log(`Trails in database: ${trailCount}`);
-    console.log(`Lifts in database: ${liftCount}`);
-
-    console.log('\nImport completed successfully!');
-    process.exit(0);
-
-  } catch (error) {
-    console.error('Import failed:', error);
-    process.exit(1);
+const dropStaging = async (db) => {
+  const existing = new Set((await db.listCollections().toArray()).map((c) => c.name));
+  for (const Model of MODELS) {
+    if (existing.has(stagingName(Model))) {
+      await db.collection(stagingName(Model)).drop();
+    }
   }
 };
 
-// Run the import
-importData(); 
+const importData = async () => {
+  const resortsData = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+  console.log(`Read ${resortsData.length} resorts from ${DATA_FILE}`);
+
+  const { docs, skipped } = buildDocuments(resortsData);
+
+  await connectDB();
+  const { db } = mongoose.connection;
+
+  try {
+    // Leftovers from an earlier failed run
+    await dropStaging(db);
+
+    for (const Model of MODELS) {
+      const staging = db.collection(stagingName(Model));
+      const modelDocs = docs.get(Model);
+      for (let i = 0; i < modelDocs.length; i += BATCH_SIZE) {
+        await staging.insertMany(modelDocs.slice(i, i + BATCH_SIZE), { ordered: true });
+      }
+      for (const [fields, options] of Model.schema.indexes()) {
+        await staging.createIndex(fields, options);
+      }
+      console.log(`Staged ${modelDocs.length} ${Model.collection.collectionName}`);
+    }
+
+    // Each rename is atomic; the live collections are replaced only after every batch landed
+    for (const Model of MODELS) {
+      await db.collection(stagingName(Model)).rename(Model.collection.collectionName, { dropTarget: true });
+    }
+  } catch (error) {
+    await dropStaging(db).catch(() => {});
+    throw error;
+  }
+
+  console.log('\n=== Import Summary ===');
+  for (const Model of MODELS) {
+    console.log(`${Model.collection.collectionName}: ${await Model.countDocuments()}`);
+  }
+  if (skipped > 0) console.log(`Skipped ${skipped} invalid members`);
+};
+
+importData()
+  .then(() => mongoose.disconnect())
+  .catch(async (error) => {
+    console.error('Import failed, live data left unchanged:', error.message);
+    await mongoose.disconnect();
+    process.exit(1);
+  });

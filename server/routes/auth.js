@@ -4,13 +4,24 @@ const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
+const asyncHandler = require('../utils/asyncHandler');
+const HttpError = require('../utils/httpError');
 
 // Generate JWT Token
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: '30d',
+    expiresIn: process.env.JWT_EXPIRE || '30d',
   });
 };
+
+const toPublicUser = (user) => ({
+  _id: user._id,
+  firstName: user.firstName,
+  lastName: user.lastName,
+  email: user.email,
+  role: user.role,
+  token: generateToken(user._id)
+});
 
 const validate = (req, res, next) => {
   const errors = validationResult(req);
@@ -18,227 +29,143 @@ const validate = (req, res, next) => {
     return next();
   }
 
+  const details = errors.array().map((error) => ({
+    field: error.path,
+    message: error.msg
+  }));
+
   return res.status(400).json({
     success: false,
-    message: 'Validation failed',
-    errors: errors.array().map((error) => ({
-      field: error.path,
-      message: error.msg
-    }))
+    message: details[0].message,
+    errors: details
   });
 };
 
+// Each validator needs its own message; withMessage only applies to the check right before it
+const nameRule = (field, label) => body(field)
+  .trim()
+  .notEmpty().withMessage(`${label} is required`)
+  .isLength({ max: 50 }).withMessage(`${label} cannot exceed 50 characters`);
+
+const emailRule = () => body('email')
+  .trim()
+  .isEmail().withMessage('Enter a valid email address')
+  .normalizeEmail();
+
+const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+const PASSWORD_MESSAGE = 'Password must be at least 8 characters and include uppercase, lowercase, and a number';
+
 const registrationValidation = [
-  body('firstName').trim().notEmpty().isLength({ max: 50 }),
-  body('lastName').trim().notEmpty().isLength({ max: 50 }),
-  body('email').trim().isEmail().normalizeEmail(),
-  body('password')
-    .isLength({ min: 8 })
-    .matches(/[a-z]/)
-    .matches(/[A-Z]/)
-    .matches(/\d/)
-    .withMessage('Password must be at least 8 characters and include uppercase, lowercase, and a number.'),
+  nameRule('firstName', 'First name'),
+  nameRule('lastName', 'Last name'),
+  emailRule(),
+  body('password').isString().matches(PASSWORD_PATTERN).withMessage(PASSWORD_MESSAGE),
   validate
 ];
 
 const loginValidation = [
-  body('email').trim().isEmail().normalizeEmail(),
-  body('password').isString().notEmpty(),
+  emailRule(),
+  body('password').isString().notEmpty().withMessage('Password is required'),
   validate
 ];
 
 const profileValidation = [
-  body('firstName').optional().trim().notEmpty().isLength({ max: 50 }),
-  body('lastName').optional().trim().notEmpty().isLength({ max: 50 }),
-  body('email').optional().trim().isEmail().normalizeEmail(),
-  body('password')
-    .optional()
-    .isLength({ min: 8 })
-    .matches(/[a-z]/)
-    .matches(/[A-Z]/)
-    .matches(/\d/)
-    .withMessage('Password must be at least 8 characters and include uppercase, lowercase, and a number.'),
+  nameRule('firstName', 'First name').optional(),
+  nameRule('lastName', 'Last name').optional(),
+  emailRule().optional(),
+  body('password').optional().isString().matches(PASSWORD_PATTERN).withMessage(PASSWORD_MESSAGE),
   validate
 ];
 
 // @desc    Register a new user
 // @route   POST /api/auth/register
 // @access  Public
-router.post('/register', registrationValidation, async (req, res) => {
-  try {
-    const { firstName, lastName, email, password } = req.body;
+router.post('/register', registrationValidation, asyncHandler(async (req, res) => {
+  const { firstName, lastName, email, password } = req.body;
 
-    // Check if user exists
-    const userExists = await User.findOne({ email });
-    if (userExists) {
-      return res.status(400).json({
-        success: false,
-        message: 'User already exists'
-      });
-    }
-
-    // Create user
-    const user = await User.create({
-      firstName,
-      lastName,
-      email,
-      password
-    });
-
-    if (user) {
-      res.status(201).json({
-        success: true,
-        data: {
-          _id: user._id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-          role: user.role,
-          token: generateToken(user._id)
-        }
-      });
-    } else {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid user data'
-      });
-    }
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error.message
-    });
+  if (await User.exists({ email })) {
+    throw new HttpError(409, 'An account with that email already exists');
   }
-});
+
+  // A concurrent duplicate still fails on the unique index (handled as 409)
+  const user = await User.create({ firstName, lastName, email, password });
+
+  res.status(201).json({
+    success: true,
+    data: toPublicUser(user)
+  });
+}));
 
 // @desc    Authenticate user & get token
 // @route   POST /api/auth/login
 // @access  Public
-router.post('/login', loginValidation, async (req, res) => {
-  try {
-    const { email, password } = req.body;
+router.post('/login', loginValidation, asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
 
-    // Check for user email
-    const user = await User.findOne({ email });
+  const user = await User.findOne({ email });
 
-    if (user?.isLocked) {
-      return res.status(423).json({
-        success: false,
-        message: 'Account temporarily locked. Please try again later.'
-      });
-    }
+  if (user?.isLocked) {
+    throw new HttpError(423, 'Account temporarily locked. Please try again later.');
+  }
 
-    if (user && (await user.matchPassword(password))) {
-      await user.resetLoginAttempts();
-      return res.json({
-        success: true,
-        data: {
-          _id: user._id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-          role: user.role,
-          token: generateToken(user._id)
-        }
-      });
-    }
-
-    if (user) {
-      await user.incLoginAttempts();
-    }
-
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid email or password'
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error.message
+  if (user && (await user.matchPassword(password))) {
+    await user.resetLoginAttempts();
+    return res.json({
+      success: true,
+      data: toPublicUser(user)
     });
   }
-});
+
+  if (user) {
+    await user.incLoginAttempts();
+  }
+
+  throw new HttpError(401, 'Invalid email or password');
+}));
 
 // @desc    Get user profile
 // @route   GET /api/auth/me
 // @access  Private
-router.get('/me', protect, async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id).select(
-      '-password -resetPasswordToken -resetPasswordExpire -emailVerificationToken -emailVerificationExpire'
-    );
-    
-    res.json({
-      success: true,
-      data: user
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error.message
-    });
-  }
-});
+router.get('/me', protect, asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id).select(
+    '-password -resetPasswordToken -resetPasswordExpire -emailVerificationToken -emailVerificationExpire'
+  );
+
+  res.json({
+    success: true,
+    data: user
+  });
+}));
 
 // @desc    Update user profile
 // @route   PUT /api/auth/me
 // @access  Private
-router.put('/me', protect, profileValidation, async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id);
-
-    if (user) {
-      if (req.body.email && req.body.email !== user.email) {
-        const emailInUse = await User.findOne({ email: req.body.email, _id: { $ne: user._id } });
-        if (emailInUse) {
-          return res.status(400).json({
-            success: false,
-            message: 'Email already in use'
-          });
-        }
-      }
-
-      user.firstName = req.body.firstName || user.firstName;
-      user.lastName = req.body.lastName || user.lastName;
-      user.email = req.body.email || user.email;
-      
-      if (req.body.password) {
-        user.password = req.body.password;
-      }
-
-      const updatedUser = await user.save();
-
-      res.json({
-        success: true,
-        data: {
-          _id: updatedUser._id,
-          firstName: updatedUser.firstName,
-          lastName: updatedUser.lastName,
-          email: updatedUser.email,
-          role: updatedUser.role,
-          token: generateToken(updatedUser._id)
-        }
-      });
-    } else {
-      res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error.message
-    });
+router.put('/me', protect, profileValidation, asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    throw new HttpError(404, 'User not found');
   }
-});
 
-module.exports = router; 
+  if (req.body.email && req.body.email !== user.email) {
+    if (await User.exists({ email: req.body.email, _id: { $ne: user._id } })) {
+      throw new HttpError(409, 'Email already in use');
+    }
+  }
+
+  user.firstName = req.body.firstName || user.firstName;
+  user.lastName = req.body.lastName || user.lastName;
+  user.email = req.body.email || user.email;
+
+  if (req.body.password) {
+    user.password = req.body.password;
+  }
+
+  const updatedUser = await user.save();
+
+  res.json({
+    success: true,
+    data: toPublicUser(updatedUser)
+  });
+}));
+
+module.exports = router;
