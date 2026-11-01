@@ -35,3 +35,6 @@ client/public/logo.png
 .vscode/
 .idea/
 *.swp
+
+# Assistant eval output
+server/eval/results/

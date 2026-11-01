@@ -7,7 +7,8 @@
     "dev": "nodemon server.js",
     "migrate": "node scripts/migrate.js",
     "import": "node scripts/importData.js",
-    "test": "node --test"
+    "test": "node --test",
+    "eval": "node eval/run.js"
   },
   "keywords": [],
   "author": "",

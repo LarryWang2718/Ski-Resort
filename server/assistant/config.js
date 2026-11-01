@@ -10,7 +10,9 @@ const positiveNumber = (name, fallback) => {
 // refusal fallback) are priced at the most expensive known rate so cost is never underestimated.
 const PRICES = {
   'claude-opus-5-5': { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
-  'claude-opus-5': { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 }
+  'claude-opus-5': { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+  // The rule-based stand-in (ASSISTANT_PROVIDER=mock) costs nothing
+  mock: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
 };
 const FALLBACK_PRICE = PRICES['claude-opus-5'];
 

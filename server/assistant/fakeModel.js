@@ -7,7 +7,7 @@ const { setTimeout: sleep } = require('node:timers/promises');
 let sequence = 0;
 const nextId = (prefix) => `${prefix}_mock_${Date.now().toString(36)}${(sequence++).toString(36)}`;
 
-const fakeMessage = ({ content, stop_reason: stopReason, model = 'mock-model', usage = {} }) => ({
+const fakeMessage = ({ content, stop_reason: stopReason, model = 'mock', usage = {} }) => ({
   id: nextId('msg'),
   type: 'message',
   role: 'assistant',
