@@ -626,6 +626,11 @@ a.list-row:focus-visible {
   }
 }
 
+/* Arriving from the assistant's "Show on map" link */
+.map-highlight {
+  margin-top: 0;
+}
+
 /* Assistant: question and answer rows in the same style as the lists */
 .detail-ask {
   margin-top: 1.1rem;

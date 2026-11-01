@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import ResortMap from './ResortMap';
 import DifficultyBadge from './DifficultyBadge';
@@ -15,6 +15,27 @@ const LIFT_LEGEND = [
   ['legend-surface', 'Surface Lift'],
   ['legend-closed', 'Closed/Maintenance']
 ];
+
+// Set by the assistant's "Show on map" links, e.g. ?difficulty=advanced&lit=1&name=Vallée
+const readHighlight = (params) => {
+  const difficulty = params.get('difficulty') || undefined;
+  const lit = params.has('lit') ? params.get('lit') === '1' : undefined;
+  const name = params.get('name')?.trim() || undefined;
+  return difficulty || lit !== undefined || name ? { difficulty, lit, name } : null;
+};
+
+// The same rules as the assistant's list_trails tool, so the map shows what the answer described
+const matchesHighlight = ({ difficulty, lit, name }) => (trail) => (!difficulty || trail.difficulty === difficulty)
+  && (lit === undefined || Boolean(trail.lit) === lit)
+  && (!name || Boolean(trail.name?.toLowerCase().includes(name.toLowerCase())));
+
+const describeHighlight = ({ difficulty, lit, name }) => [
+  lit === true && 'floodlit',
+  lit === false && 'unlit',
+  difficulty && (DIFFICULTIES[difficulty]?.label || difficulty).toLowerCase(),
+  'runs',
+  name && `matching "${name}"`
+].filter(Boolean).join(' ');
 
 function FeatureList({ title, items, renderRow }) {
   const [filter, setFilter] = useState('');
@@ -102,6 +123,25 @@ function ResortDetail() {
   const { data, error, status, reload } = useApi(`/resorts/${id}`, { keepPreviousData: false });
   const [showTrails, setShowTrails] = useState(true);
   const [showLifts, setShowLifts] = useState(true);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const highlight = useMemo(() => readHighlight(searchParams), [searchParams]);
+  const allTrails = data?.data.trails;
+  const highlightedIds = useMemo(
+    () => (highlight && allTrails ? new Set(allTrails.filter(matchesHighlight(highlight)).map((trail) => trail._id)) : null),
+    [highlight, allTrails]
+  );
+  const mapSectionRef = useRef(null);
+
+  // Arriving from a "Show on map" link: go straight to the map
+  useEffect(() => {
+    const section = mapSectionRef.current;
+    if (highlightedIds && section) {
+      // Stop just below the sticky navbar, whatever its height on this screen. Instant, because the
+      // page-wide smooth scrolling would animate past the whole header.
+      const navbarHeight = document.querySelector('.navbar')?.getBoundingClientRect().height || 0;
+      window.scrollTo({ top: section.getBoundingClientRect().top + window.scrollY - navbarHeight - 12, behavior: 'instant' });
+    }
+  }, [highlightedIds]);
 
   if (error) {
     return (
@@ -157,7 +197,7 @@ function ResortDetail() {
         </dl>
       )}
 
-      <section className="detail-section">
+      <section className="detail-section" ref={mapSectionRef}>
         <div className="section-heading">
           <h2 className="section-title">Trail map</h2>
           <div className="map-controls">
@@ -172,6 +212,19 @@ function ResortDetail() {
           </div>
         </div>
 
+        {highlight && (
+          <div className="notice map-highlight">
+            <span>
+              {highlightedIds.size > 0
+                ? `Highlighting ${describeHighlight(highlight)}: ${highlightedIds.size.toLocaleString()} mapped ${highlightedIds.size === 1 ? 'segment' : 'segments'}.`
+                : `No ${describeHighlight(highlight)} are mapped for this resort.`}
+            </span>
+            <button type="button" className="btn btn-secondary btn-small" onClick={() => setSearchParams({}, { replace: true })}>
+              Clear highlight
+            </button>
+          </div>
+        )}
+
         <div className="map-frame">
           <ResortMap
             resort={resort}
@@ -179,6 +232,7 @@ function ResortDetail() {
             lifts={showLifts ? lifts : []}
             showTrails={showTrails}
             showLifts={showLifts}
+            highlightedIds={highlightedIds}
           />
         </div>
 

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import MapGL, { Marker, Popup, Source, Layer } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import DifficultyBadge from './DifficultyBadge';
@@ -31,6 +31,19 @@ const LIFT_COLOR = [
   '#4ECDC4'
 ];
 
+const TRAIL_PAINT = {
+  'line-color': TRAIL_COLOR,
+  'line-width': ['match', ['get', 'difficulty'], ['expert', 'extreme'], 3, 2],
+  'line-opacity': 0.8
+};
+// With a highlight, matching runs stand out and everything else steps back
+const HIGHLIGHT_TRAIL_PAINT = {
+  'line-color': TRAIL_COLOR,
+  'line-width': ['case', ['get', 'highlighted'], 5, 1.5],
+  'line-opacity': ['case', ['get', 'highlighted'], 1, 0.18]
+};
+const HIGHLIGHT_CASING_PAINT = { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': 0.85 };
+
 const toLngLat = (coordinates) => (coordinates || [])
   .filter((point) => Number.isFinite(point.longitude) && Number.isFinite(point.latitude))
   .map((point) => [point.longitude, point.latitude]);
@@ -49,7 +62,18 @@ const toFeatureCollection = (items, pickProperties) => ({
     }))
 });
 
-function ResortMap({ resort, trails = [], lifts = [], showTrails = true, showLifts = true }) {
+// [[west, south], [east, north]] around the given trails, or null
+const boundsOf = (trails) => {
+  const points = trails.flatMap((trail) => toLngLat(trail.coordinates));
+  if (points.length === 0) return null;
+  const lngs = points.map(([lng]) => lng);
+  const lats = points.map(([, lat]) => lat);
+  return [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]];
+};
+
+// highlightedIds: trail ids to emphasise (from the assistant's "Show on map" links), or null
+function ResortMap({ resort, trails = [], lifts = [], showTrails = true, showLifts = true, highlightedIds = null }) {
+  const mapRef = useRef(null);
   const resortCenter = useMemo(() => {
     const lat = parseFloat(resort?.location_coordinate?.lat);
     const lon = parseFloat(resort?.location_coordinate?.long);
@@ -79,9 +103,26 @@ function ResortMap({ resort, trails = [], lifts = [], showTrails = true, showLif
   const liftsById = useMemo(() => new Map(lifts.map((lift) => [lift._id, lift])), [lifts]);
 
   const trailsGeoJSON = useMemo(
-    () => toFeatureCollection(showTrails ? trails : [], (trail) => ({ difficulty: trail.difficulty || 'unknown' })),
-    [trails, showTrails]
+    () => toFeatureCollection(showTrails ? trails : [], (trail) => ({
+      difficulty: trail.difficulty || 'unknown',
+      highlighted: Boolean(highlightedIds?.has(trail._id))
+    })),
+    [trails, showTrails, highlightedIds]
   );
+  const highlighting = Boolean(highlightedIds);
+
+  // Bring the highlighted runs into view, once the map has loaded
+  const highlightBounds = useMemo(
+    () => (highlightedIds?.size ? boundsOf(trails.filter((trail) => highlightedIds.has(trail._id))) : null),
+    [trails, highlightedIds]
+  );
+  const fitHighlight = useCallback(() => {
+    if (highlightBounds) mapRef.current?.fitBounds(highlightBounds, { padding: 60, maxZoom: 14.5, duration: 0 });
+  }, [highlightBounds]);
+
+  useEffect(() => {
+    fitHighlight();
+  }, [fitHighlight]);
   const liftsGeoJSON = useMemo(
     () => toFeatureCollection(showLifts ? lifts : [], (lift) => ({ aerialway: lift.aerialway, status: lift.status })),
     [lifts, showLifts]
@@ -112,6 +153,8 @@ function ResortMap({ resort, trails = [], lifts = [], showTrails = true, showLif
   return (
     <div style={{ width: '100%', height: '500px', position: 'relative', backgroundColor: '#f0f0f0' }}>
       <MapGL
+        ref={mapRef}
+        onLoad={fitHighlight}
         {...viewport}
         onMove={(evt) => setViewport(evt.viewState)}
         onClick={onMapClick}
@@ -129,15 +172,10 @@ function ResortMap({ resort, trails = [], lifts = [], showTrails = true, showLif
       >
         {/* Trails as Lines */}
         <Source id="trails-source" type="geojson" data={trailsGeoJSON}>
-          <Layer
-            id="trails-layer"
-            type="line"
-            paint={{
-              'line-color': TRAIL_COLOR,
-              'line-width': ['match', ['get', 'difficulty'], ['expert', 'extreme'], 3, 2],
-              'line-opacity': 0.8
-            }}
-          />
+          {highlighting && (
+            <Layer id="trails-highlight-casing" type="line" filter={['get', 'highlighted']} paint={HIGHLIGHT_CASING_PAINT} />
+          )}
+          <Layer id="trails-layer" type="line" paint={highlighting ? HIGHLIGHT_TRAIL_PAINT : TRAIL_PAINT} />
           <Layer id="trails-hit" type="line" paint={HIT_PAINT} />
         </Source>
 
@@ -149,7 +187,7 @@ function ResortMap({ resort, trails = [], lifts = [], showTrails = true, showLif
             paint={{
               'line-color': LIFT_COLOR,
               'line-width': 3,
-              'line-opacity': 0.9,
+              'line-opacity': highlighting ? 0.3 : 0.9,
               'line-dasharray': [2, 2] // All lifts use dashed lines
             }}
           />
