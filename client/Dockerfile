@@ -1,5 +1,5 @@
-# Frontend Dockerfile
-FROM node:18-alpine as build
+# Frontend Dockerfile (build context: repository root)
+FROM node:24-alpine AS build
 
 WORKDIR /app
 
@@ -12,18 +12,20 @@ RUN npm ci
 # Copy source code
 COPY client/ .
 
+# Mapbox public token is baked into the bundle at build time
+ARG REACT_APP_MAPBOX_TOKEN=""
+ENV REACT_APP_MAPBOX_TOKEN=$REACT_APP_MAPBOX_TOKEN
+
 # Build the application
 RUN npm run build
 
 # Production stage
 FROM nginx:alpine
 
-# Copy built app to nginx
+# Serves the app and proxies /api to the backend container
+COPY client/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/build /usr/share/nginx/html
-
-# Copy nginx config
-COPY nginx.conf /etc/nginx/nginx.conf
 
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"] 
+CMD ["nginx", "-g", "daemon off;"]

@@ -1,0 +1,9 @@
+.git
+.claude
+**/node_modules
+**/.env
+client/build
+server/db
+skiresorts*.json
+ski-resorts-with-members.json
+*.png

@@ -1,0 +1,25 @@
+# Runs the API and the built client together: http://localhost:8080
+# REACT_APP_MAPBOX_TOKEN=pk... docker compose up --build
+services:
+  api:
+    build: .
+    env_file: server/.env
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      # nginx sits in front, so trust one proxy hop for client IPs
+      TRUST_PROXY: "true"
+      CLIENT_ORIGIN: http://localhost:8080
+    restart: unless-stopped
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+      args:
+        REACT_APP_MAPBOX_TOKEN: ${REACT_APP_MAPBOX_TOKEN:-}
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    restart: unless-stopped

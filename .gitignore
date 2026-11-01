@@ -18,8 +18,11 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-# Data and output files
+# Data and output files (regenerate with the scripts in server/scripts)
 server/db
+skiresorts.json
+skiresorts_clean.json
+ski-resorts-with-members.json
 client/build/
 client/public/background.jpg
 client/public/logo.png
