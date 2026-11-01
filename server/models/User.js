@@ -116,11 +116,6 @@ const userSchema = new mongoose.Schema({
   
   // Platform Statistics
   stats: {
-    totalReviews: {
-      type: Number,
-      default: 0,
-      min: [0, 'Total reviews cannot be negative']
-    },
     totalBookings: {
       type: Number,
       default: 0,
@@ -321,18 +316,6 @@ userSchema.methods.removeFromWishlist = function(resortId) {
   this.preferences.wishlistResorts = this.preferences.wishlistResorts.filter(
     id => id.toString() !== resortId.toString()
   );
-  return this.save();
-};
-
-// Check if user can write reviews (prevent spam)
-userSchema.methods.canWriteReview = function() {
-  // Allow one review per resort per user
-  return this.stats.totalReviews < 100; // reasonable limit
-};
-
-// Update review count
-userSchema.methods.incrementReviewCount = function() {
-  this.stats.totalReviews += 1;
   return this.save();
 };
 

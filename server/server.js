@@ -62,7 +62,6 @@ const Resort = require('./models/Resort');
 const Trail = require('./models/Trail');
 const Lift = require('./models/Lift');
 const Weather = require('./models/Weather');
-const Review = require('./models/Review');
 
 console.log('All models loaded successfully!');
 

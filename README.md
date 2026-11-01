@@ -1,7 +1,7 @@
 # Ski-Resort
 
 ## Overview
-Ski-Resort is a full-stack web application that helps skiers discover resorts, explore trail maps, and plan mountain adventures. The site combines resort profiles, lift and trail statistics, user reviews, and real-time weather updates to give visitors an informed view before they head to the slopes.
+Ski-Resort is a full-stack web application that helps skiers discover resorts, explore trail maps, and plan mountain adventures. The site combines resort profiles, lift and trail statistics, and real-time weather updates to give visitors an informed view before they head to the slopes.
 
 ## Demo
 ![Ski-Resort demo 1](./demo1.png)
@@ -11,7 +11,7 @@ Ski-Resort is a full-stack web application that helps skiers discover resorts, e
 ## Features
 - Browse detailed resort pages with lift counts, trail difficulty breakdowns, operating hours, and ticket information.
 - View interactive maps that highlight terrain, lifts, and amenities powered by OpenStreetMap data.
-- Register for an account, securely authenticate, and contribute community reviews and ratings.
+- Register for an account, securely authenticate, and manage your profile.
 - Track live weather and snowfall summaries to decide when conditions are ideal.
 
 ## Technology Stack
