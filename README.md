@@ -4,9 +4,7 @@
 Ski-Resort is a full-stack web application that helps skiers discover resorts, explore trail maps, and plan mountain adventures. It combines a ranked directory of ski resorts with every piste and lift mapped in OpenStreetMap, drawn on an interactive trail map.
 
 ## Demo
-![Ski-Resort demo 1](./demo1.png)
-
-![Ski-Resort demo 2](./demo2.png)
+<!-- Screenshots to be added -->
 
 ## Features
 - Ranked directory of 3,284 resorts in 13 countries, searchable by name and filterable by country and region.

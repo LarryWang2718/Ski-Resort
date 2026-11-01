@@ -15,7 +15,10 @@
 
 ### Removed
 - User reviews (no longer part of the product)
-- Unused weather model and early clustering scripts
+- Early clustering scripts
+
+### Prototypes (not wired in yet)
+- `server/models/Weather.js`: schema and condition scoring for a future weather feature
 
 ## Next
 
