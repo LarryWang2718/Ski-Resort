@@ -23,4 +23,7 @@ const LiftSchema = new mongoose.Schema({
   resort: { type: mongoose.Schema.Types.ObjectId, ref: 'Resort', required: true }
 });
 
+LiftSchema.index({ resort: 1 });
+LiftSchema.index({ name: 1 });
+
 module.exports = mongoose.model('Lift', LiftSchema);

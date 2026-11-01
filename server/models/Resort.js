@@ -7,7 +7,7 @@ const MemberRefSchema = new mongoose.Schema({
 }, { _id: false });
 
 const ResortSchema = new mongoose.Schema({
-  rank: String,
+  rank: Number,
   name: String,
   rating: String,
   url: String,
@@ -26,5 +26,8 @@ const ResortSchema = new mongoose.Schema({
   number_of_matches: String,
   members: [MemberRefSchema]
 });
+
+ResortSchema.index({ rank: 1 });
+ResortSchema.index({ location_country: 1, location_region: 1 });
 
 module.exports = mongoose.model('Resort', ResortSchema);

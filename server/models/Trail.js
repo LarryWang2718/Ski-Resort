@@ -26,4 +26,7 @@ const TrailSchema = new mongoose.Schema({
   resort: { type: mongoose.Schema.Types.ObjectId, ref: 'Resort', required: true }
 });
 
+TrailSchema.index({ resort: 1 });
+TrailSchema.index({ name: 1 });
+
 module.exports = mongoose.model('Trail', TrailSchema);

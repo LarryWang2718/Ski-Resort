@@ -42,7 +42,7 @@ const importData = async () => {
 
       // Create resort document (without members array for now)
       const resortDoc = {
-        rank: resortData.rank,
+        rank: parseInt(String(resortData.rank).replace(/,/g, ''), 10) || null,
         name: resortData.name,
         rating: resortData.rating,
         url: resortData.url,
