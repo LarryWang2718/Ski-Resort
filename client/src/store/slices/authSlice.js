@@ -1,10 +1,8 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from 'axios';
+import api, { getErrorMessage, loadStoredUser, storeUser } from '../../api/client';
 
 // Get user from localStorage
-const userFromStorage = localStorage.getItem('user')
-  ? JSON.parse(localStorage.getItem('user'))
-  : null;
+const userFromStorage = loadStoredUser();
 
 const initialState = {
   user: userFromStorage,
@@ -18,18 +16,16 @@ export const register = createAsyncThunk(
   'auth/register',
   async ({ firstName, lastName, email, password }, { rejectWithValue }) => {
     try {
-      const response = await axios.post('/api/auth/register', {
+      const response = await api.post('/auth/register', {
         firstName,
         lastName,
         email,
         password,
       });
-      localStorage.setItem('user', JSON.stringify(response.data.data));
+      storeUser(response.data.data);
       return response.data.data;
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.message || 'Registration failed'
-      );
+      return rejectWithValue(getErrorMessage(error));
     }
   }
 );
@@ -39,16 +35,14 @@ export const login = createAsyncThunk(
   'auth/login',
   async ({ email, password }, { rejectWithValue }) => {
     try {
-      const response = await axios.post('/api/auth/login', {
+      const response = await api.post('/auth/login', {
         email,
         password,
       });
-      localStorage.setItem('user', JSON.stringify(response.data.data));
+      storeUser(response.data.data);
       return response.data.data;
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.message || 'Login failed'
-      );
+      return rejectWithValue(getErrorMessage(error));
     }
   }
 );
@@ -56,20 +50,12 @@ export const login = createAsyncThunk(
 // Get user profile
 export const getProfile = createAsyncThunk(
   'auth/getProfile',
-  async (_, { rejectWithValue, getState }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const { auth } = getState();
-      const config = {
-        headers: {
-          Authorization: `Bearer ${auth.user.token}`,
-        },
-      };
-      const response = await axios.get('/api/auth/me', config);
+      const response = await api.get('/auth/me');
       return response.data.data;
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.message || 'Failed to get profile'
-      );
+      return rejectWithValue(getErrorMessage(error));
     }
   }
 );
@@ -77,21 +63,13 @@ export const getProfile = createAsyncThunk(
 // Update user profile
 export const updateProfile = createAsyncThunk(
   'auth/updateProfile',
-  async (userData, { rejectWithValue, getState }) => {
+  async (userData, { rejectWithValue }) => {
     try {
-      const { auth } = getState();
-      const config = {
-        headers: {
-          Authorization: `Bearer ${auth.user.token}`,
-        },
-      };
-      const response = await axios.put('/api/auth/me', userData, config);
-      localStorage.setItem('user', JSON.stringify(response.data.data));
+      const response = await api.put('/auth/me', userData);
+      storeUser(response.data.data);
       return response.data.data;
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.message || 'Failed to update profile'
-      );
+      return rejectWithValue(getErrorMessage(error));
     }
   }
 );
@@ -101,10 +79,18 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     logout: (state) => {
-      localStorage.removeItem('user');
+      storeUser(null);
       state.user = null;
       state.isAuthenticated = false;
       state.error = null;
+    },
+    // The API rejected the stored token (expired or revoked)
+    sessionExpired: (state, action) => {
+      storeUser(null);
+      state.user = null;
+      state.isAuthenticated = false;
+      state.loading = false;
+      state.error = action.payload || 'Your session expired. Log in again.';
     },
     clearError: (state) => {
       state.error = null;
@@ -151,7 +137,8 @@ const authSlice = createSlice({
       })
       .addCase(getProfile.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        // sessionExpired may already have logged the user out with a clearer message
+        state.error = state.error || action.payload;
       })
       // Update Profile
       .addCase(updateProfile.pending, (state) => {
@@ -164,10 +151,10 @@ const authSlice = createSlice({
       })
       .addCase(updateProfile.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        state.error = state.error || action.payload;
       });
   },
 });
 
-export const { logout, clearError } = authSlice.actions;
-export default authSlice.reducer; 
+export const { logout, sessionExpired, clearError } = authSlice.actions;
+export default authSlice.reducer;

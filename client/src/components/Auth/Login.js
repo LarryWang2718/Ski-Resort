@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import { login, clearError } from '../../store/slices/authSlice';
+import { ErrorNotice } from '../Feedback';
 
 function Login() {
   const [formData, setFormData] = useState({
@@ -19,6 +20,9 @@ function Login() {
     }
   }, [isAuthenticated, navigate]);
 
+  // Don't carry this page's error over to the next page
+  useEffect(() => () => dispatch(clearError()), [dispatch]);
+
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -31,73 +35,52 @@ function Login() {
     dispatch(login(formData));
   };
 
-  const handleClearError = () => {
-    dispatch(clearError());
-  };
-
   return (
-    <div style={{ maxWidth: '400px', margin: '0 auto', padding: '2rem 0' }}>
-      <div className="card">
-        <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>Login</h2>
-        
-        {error && (
-          <div className="error" onClick={handleClearError}>
-            {error}
-          </div>
-        )}
+    <div className="page-shell auth-shell">
+      <header className="page-header">
+        <div className="page-kicker">Account</div>
+        <h1>Log in</h1>
+      </header>
 
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '1rem' }}>
-            <label htmlFor="email" style={{ display: 'block', marginBottom: '0.5rem' }}>
-              Email
-            </label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              className="search-bar"
-              required
-            />
-          </div>
+      {error && <ErrorNotice message={error} />}
 
-          <div style={{ marginBottom: '1rem' }}>
-            <label htmlFor="password" style={{ display: 'block', marginBottom: '0.5rem' }}>
-              Password
-            </label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              className="search-bar"
-              required
-            />
-          </div>
+      <form className="form-stack" onSubmit={handleSubmit}>
+        <label className="form-field">
+          <span>Email</span>
+          <input
+            type="email"
+            name="email"
+            autoComplete="email"
+            value={formData.email}
+            onChange={handleChange}
+            className="field"
+            required
+          />
+        </label>
 
-          <button
-            type="submit"
-            className="btn"
-            style={{ width: '100%', marginBottom: '1rem' }}
-            disabled={loading}
-          >
-            {loading ? 'Logging in...' : 'Login'}
-          </button>
-        </form>
+        <label className="form-field">
+          <span>Password</span>
+          <input
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            value={formData.password}
+            onChange={handleChange}
+            className="field"
+            required
+          />
+        </label>
 
-        <div style={{ textAlign: 'center' }}>
-          <p>
-            Don't have an account?{' '}
-            <Link to="/register" style={{ color: '#667eea', textDecoration: 'none' }}>
-              Register here
-            </Link>
-          </p>
-        </div>
-      </div>
+        <button type="submit" className="btn btn-block" disabled={loading}>
+          {loading ? 'Logging in…' : 'Log in'}
+        </button>
+      </form>
+
+      <p className="auth-switch">
+        Don't have an account? <Link to="/register">Create one</Link>
+      </p>
     </div>
   );
 }
 
-export default Login; 
+export default Login;

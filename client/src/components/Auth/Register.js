@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import { register, clearError } from '../../store/slices/authSlice';
+import { ErrorNotice } from '../Feedback';
+
+// Same rule the API enforces, so users find out before submitting
+const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+const PASSWORD_HINT = 'At least 8 characters, with an uppercase letter, a lowercase letter and a number.';
 
 function Register() {
   const [formData, setFormData] = useState({
@@ -24,6 +29,8 @@ function Register() {
     }
   }, [isAuthenticated, navigate]);
 
+  useEffect(() => () => dispatch(clearError()), [dispatch]);
+
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -39,14 +46,13 @@ function Register() {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    // Check if passwords match
-    if (formData.password !== formData.confirmPassword) {
-      setPasswordError('Passwords do not match');
+    if (!PASSWORD_PATTERN.test(formData.password)) {
+      setPasswordError(PASSWORD_HINT);
       return;
     }
 
-    if (formData.password.length < 6) {
-      setPasswordError('Password must be at least 6 characters');
+    if (formData.password !== formData.confirmPassword) {
+      setPasswordError('Passwords do not match');
       return;
     }
 
@@ -55,124 +61,95 @@ function Register() {
     dispatch(register(registerData));
   };
 
-  const handleClearError = () => {
-    dispatch(clearError());
-  };
-
   return (
-    <div style={{ maxWidth: '400px', margin: '0 auto', padding: '2rem 0' }}>
-      <div className="card">
-        <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>Register</h2>
-        
-        {error && (
-          <div className="error" onClick={handleClearError}>
-            {error}
-          </div>
-        )}
+    <div className="page-shell auth-shell">
+      <header className="page-header">
+        <div className="page-kicker">Account</div>
+        <h1>Create account</h1>
+      </header>
 
-        {passwordError && (
-          <div className="error">
-            {passwordError}
-          </div>
-        )}
+      {error && <ErrorNotice message={error} />}
+      {passwordError && <ErrorNotice message={passwordError} />}
 
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '1rem' }}>
-            <label htmlFor="firstName" style={{ display: 'block', marginBottom: '0.5rem' }}>
-              First Name
-            </label>
+      <form className="form-stack" onSubmit={handleSubmit}>
+        <div className="form-row">
+          <label className="form-field">
+            <span>First name</span>
             <input
               type="text"
-              id="firstName"
               name="firstName"
+              autoComplete="given-name"
               value={formData.firstName}
               onChange={handleChange}
-              className="search-bar"
+              className="field"
               required
             />
-          </div>
+          </label>
 
-          <div style={{ marginBottom: '1rem' }}>
-            <label htmlFor="lastName" style={{ display: 'block', marginBottom: '0.5rem' }}>
-              Last Name
-            </label>
+          <label className="form-field">
+            <span>Last name</span>
             <input
               type="text"
-              id="lastName"
               name="lastName"
+              autoComplete="family-name"
               value={formData.lastName}
               onChange={handleChange}
-              className="search-bar"
+              className="field"
               required
             />
-          </div>
-
-          <div style={{ marginBottom: '1rem' }}>
-            <label htmlFor="email" style={{ display: 'block', marginBottom: '0.5rem' }}>
-              Email
-            </label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              className="search-bar"
-              required
-            />
-          </div>
-
-          <div style={{ marginBottom: '1rem' }}>
-            <label htmlFor="password" style={{ display: 'block', marginBottom: '0.5rem' }}>
-              Password
-            </label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              className="search-bar"
-              required
-            />
-          </div>
-
-          <div style={{ marginBottom: '1rem' }}>
-            <label htmlFor="confirmPassword" style={{ display: 'block', marginBottom: '0.5rem' }}>
-              Confirm Password
-            </label>
-            <input
-              type="password"
-              id="confirmPassword"
-              name="confirmPassword"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              className="search-bar"
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="btn"
-            style={{ width: '100%', marginBottom: '1rem' }}
-            disabled={loading}
-          >
-            {loading ? 'Creating account...' : 'Register'}
-          </button>
-        </form>
-
-        <div style={{ textAlign: 'center' }}>
-          <p>
-            Already have an account?{' '}
-            <Link to="/login" style={{ color: '#667eea', textDecoration: 'none' }}>
-              Login here
-            </Link>
-          </p>
+          </label>
         </div>
-      </div>
+
+        <label className="form-field">
+          <span>Email</span>
+          <input
+            type="email"
+            name="email"
+            autoComplete="email"
+            value={formData.email}
+            onChange={handleChange}
+            className="field"
+            required
+          />
+        </label>
+
+        <label className="form-field">
+          <span>Password</span>
+          <input
+            type="password"
+            name="password"
+            autoComplete="new-password"
+            value={formData.password}
+            onChange={handleChange}
+            className="field"
+            required
+          />
+          <small className="form-hint">{PASSWORD_HINT}</small>
+        </label>
+
+        <label className="form-field">
+          <span>Confirm password</span>
+          <input
+            type="password"
+            name="confirmPassword"
+            autoComplete="new-password"
+            value={formData.confirmPassword}
+            onChange={handleChange}
+            className="field"
+            required
+          />
+        </label>
+
+        <button type="submit" className="btn btn-block" disabled={loading}>
+          {loading ? 'Creating account…' : 'Create account'}
+        </button>
+      </form>
+
+      <p className="auth-switch">
+        Already have an account? <Link to="/login">Log in</Link>
+      </p>
     </div>
   );
 }
 
-export default Register; 
+export default Register;

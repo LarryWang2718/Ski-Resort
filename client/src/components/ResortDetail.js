@@ -1,222 +1,204 @@
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import axios from 'axios';
+import React, { useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import useApi from '../hooks/useApi';
 import ResortMap from './ResortMap';
+import DifficultyBadge from './DifficultyBadge';
+import { EmptyNotice, ErrorNotice, LoadingNotice } from './Feedback';
+import { DIFFICULTIES, formatLocation, formatStat, humanize, liftLabel, statusNote } from '../utils/format';
+
+// Big resorts map close to 1,000 trails; render a first batch and let the user ask for the rest
+const INITIAL_ROWS = 50;
+
+const LIFT_LEGEND = [
+  ['legend-gondola', 'Gondola/Tram/Cable Car'],
+  ['legend-chair', 'Chairlift'],
+  ['legend-surface', 'Surface Lift'],
+  ['legend-closed', 'Closed/Maintenance']
+];
+
+function FeatureList({ title, items, renderRow }) {
+  const [filter, setFilter] = useState('');
+  const [showAll, setShowAll] = useState(false);
+  const noun = title.toLowerCase();
+
+  const matches = useMemo(() => {
+    const text = filter.trim().toLowerCase();
+    return text ? items.filter((item) => item.name?.toLowerCase().includes(text)) : items;
+  }, [items, filter]);
+  const visible = showAll ? matches : matches.slice(0, INITIAL_ROWS);
+
+  return (
+    <section className="detail-section">
+      <div className="section-heading">
+        <h2 className="section-title">
+          {title} <span className="section-count">{items.length.toLocaleString()}</span>
+        </h2>
+        {items.length > 10 && (
+          <input
+            type="search"
+            className="field field--compact"
+            placeholder={`Filter ${noun} by name`}
+            aria-label={`Filter ${noun} by name`}
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        )}
+      </div>
+
+      {matches.length === 0 ? (
+        <EmptyNotice>
+          {items.length === 0 ? `No ${noun} are mapped for this resort.` : `No ${noun} match “${filter}”.`}
+        </EmptyNotice>
+      ) : (
+        <ul className="list">
+          {visible.map((item) => (
+            <li key={item._id} className="list-row list-row--static">{renderRow(item)}</li>
+          ))}
+        </ul>
+      )}
+
+      {!showAll && matches.length > INITIAL_ROWS && (
+        <button type="button" className="btn btn-secondary list-more" onClick={() => setShowAll(true)}>
+          Show all {matches.length.toLocaleString()} {noun}
+        </button>
+      )}
+    </section>
+  );
+}
+
+const renderTrail = (trail) => (
+  <>
+    <div className="list-text">
+      <span className="list-title">{trail.name}</span>
+      <span className="list-sub">
+        {[humanize(trail.pisteType), humanize(trail.grooming), trail.lit && 'Night skiing', statusNote(trail.status)]
+          .filter(Boolean)
+          .join(' · ')}
+      </span>
+    </div>
+    <span className="list-meta"><DifficultyBadge difficulty={trail.difficulty} /></span>
+  </>
+);
+
+const renderLift = (lift) => (
+  <>
+    <div className="list-text">
+      <span className="list-title">{lift.name}</span>
+      <span className="list-sub">{[lift.lit && 'Night operation', statusNote(lift.status)].filter(Boolean).join(' · ')}</span>
+    </div>
+    <span className="list-meta">
+      {[
+        liftLabel(lift.aerialway),
+        lift.capacity && `${lift.capacity.toLocaleString()} people/hour`,
+        lift.duration && `${lift.duration} min`
+      ].filter(Boolean).join(' · ')}
+    </span>
+  </>
+);
 
 function ResortDetail() {
   const { id } = useParams();
-  const [resort, setResort] = useState(null);
-  const [trails, setTrails] = useState([]);
-  const [lifts, setLifts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Don't show the previous resort while the next one loads
+  const { data, error, status, reload } = useApi(`/resorts/${id}`, { keepPreviousData: false });
   const [showTrails, setShowTrails] = useState(true);
   const [showLifts, setShowLifts] = useState(true);
 
-  useEffect(() => {
-    fetchResortDetails();
-  }, [id]);
-
-  const fetchResortDetails = async () => {
-    setLoading(true);
-    try {
-      const response = await axios.get(`/api/resorts/${id}`);
-      setResort(response.data.data.resort);
-      setTrails(response.data.data.trails);
-      setLifts(response.data.data.lifts);
-    } catch (error) {
-      console.error('Error fetching resort details:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return <div className="loading">Loading resort details...</div>;
+  if (error) {
+    return (
+      <div className="page-shell">
+        {status === 404 || status === 400 ? (
+          <EmptyNotice>
+            That resort doesn't exist. <Link to="/resorts">Browse all resorts</Link>
+          </EmptyNotice>
+        ) : (
+          <ErrorNotice message={error} onRetry={reload} />
+        )}
+      </div>
+    );
   }
 
-  if (!resort) {
-    return <div className="error">Resort not found</div>;
+  if (!data) {
+    return <div className="page-shell"><LoadingNotice>Loading resort details…</LoadingNotice></div>;
   }
+
+  const { resort, trails, lifts } = data.data;
+  const stats = [
+    ['Slopes', formatStat(resort.total_slope_length_km, 'km')],
+    ['Lifts', formatStat(resort.number_of_lifts)],
+    ['Top elevation', formatStat(resort.elevation_top_m, 'm')],
+    ['Vertical drop', formatStat(resort.elevation_difference_m, 'm')],
+    ['Annual snowfall', formatStat(resort.annual_snowfall_cm, 'cm')]
+  ].filter(([, value]) => value);
 
   return (
     <div className="page-shell">
-      <div className="card detail-hero">
-        <div className="page-kicker">Resort Detail</div>
+      <header className="detail-header">
+        <Link to="/resorts" className="back-link">← All resorts</Link>
+        <div className="page-kicker">{resort.rank ? `Ranked #${resort.rank}` : 'Resort'}</div>
         <h1>{resort.name}</h1>
-        <p className="meta-row"><strong>Country:</strong> {resort.location_country}</p>
-        {resort.location_region && (
-          <p className="meta-row"><strong>Region:</strong> {resort.location_region}</p>
-        )}
-        {resort.location_coordinate && (
-          <p className="meta-row">
-            <strong>Location:</strong> {parseFloat(resort.location_coordinate.lat).toFixed(4)}, {parseFloat(resort.location_coordinate.long).toFixed(4)}
-          </p>
-        )}
-      </div>
+        <p className="detail-location">{formatLocation(resort)}</p>
+      </header>
 
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-number">{trails.length}</div>
-          <div className="stat-label">Total Trails</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-number">{lifts.length}</div>
-          <div className="stat-label">Total Lifts</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-number">
-            {trails.filter(t => t.status === 'open').length}
-          </div>
-          <div className="stat-label">Open Trails</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-number">
-            {lifts.filter(l => l.status === 'open').length}
-          </div>
-          <div className="stat-label">Open Lifts</div>
-        </div>
-      </div>
+      {stats.length > 0 && (
+        <dl className="stat-strip stat-strip--compact">
+          {stats.map(([label, value]) => (
+            <div className="stat" key={label}>
+              <dt className="stat-label">{label}</dt>
+              <dd className="stat-number">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
 
-      {/* Interactive Map Section */}
-      <div className="detail-section">
-        <h2 className="section-title">Interactive Map</h2>
-        <div className="card map-panel">
-          {/* Map Controls */}
+      <section className="detail-section">
+        <div className="section-heading">
+          <h2 className="section-title">Trail map</h2>
           <div className="map-controls">
             <label className="toggle-pill">
-              <input
-                type="checkbox"
-                checked={showTrails}
-                onChange={(e) => setShowTrails(e.target.checked)}
-              />
-              <span>Trails ({trails.length})</span>
+              <input type="checkbox" checked={showTrails} onChange={(e) => setShowTrails(e.target.checked)} />
+              <span>Trails ({trails.length.toLocaleString()})</span>
             </label>
             <label className="toggle-pill">
-              <input
-                type="checkbox"
-                checked={showLifts}
-                onChange={(e) => setShowLifts(e.target.checked)}
-              />
-              <span>Lifts ({lifts.length})</span>
+              <input type="checkbox" checked={showLifts} onChange={(e) => setShowLifts(e.target.checked)} />
+              <span>Lifts ({lifts.length.toLocaleString()})</span>
             </label>
           </div>
+        </div>
 
-          {/* Map Component */}
-          <ResortMap 
+        <div className="map-frame">
+          <ResortMap
             resort={resort}
             trails={showTrails ? trails : []}
             lifts={showLifts ? lifts : []}
             showTrails={showTrails}
             showLifts={showLifts}
           />
-
-          {/* Map Legend */}
-          <div className="map-legend">
-            <div className="legend-title">
-              Legend:
-            </div>
-            
-            {/* Resort Center */}
-            <div className="legend-item">
-              <div className="legend-dot" />
-              <span>Resort Center</span>
-            </div>
-            
-            {/* Trail Difficulties */}
-            {showTrails && (
-              <>
-                <div className="legend-item">
-                  <div className="legend-line legend-easy" />
-                  <span>Easy (Green)</span>
-                </div>
-                <div className="legend-item">
-                  <div className="legend-line legend-intermediate" />
-                  <span>Intermediate (Blue)</span>
-                </div>
-                <div className="legend-item">
-                  <div className="legend-line legend-advanced" />
-                  <span>Advanced (Black)</span>
-                </div>
-                <div className="legend-item">
-                  <div className="legend-line legend-expert" />
-                  <span>Expert/Double Black</span>
-                </div>
-                <div className="legend-item">
-                  <div className="legend-line legend-extreme" />
-                  <span>Extreme/Out-of-Bounds (Red)</span>
-                </div>
-              </>
-            )}
-            
-            {/* Lift Types */}
-            {showLifts && (
-              <>
-                <div className="legend-item">
-                  <div className="legend-line legend-gondola" />
-                  <span>Gondola/Tram/Cable Car</span>
-                </div>
-                <div className="legend-item">
-                  <div className="legend-line legend-chair" />
-                  <span>Chairlift</span>
-                </div>
-                <div className="legend-item">
-                  <div className="legend-line legend-surface" />
-                  <span>Surface Lift</span>
-                </div>
-                <div className="legend-item">
-                  <div className="legend-line legend-closed" />
-                  <span>Closed/Maintenance</span>
-                </div>
-              </>
-            )}
-          </div>
         </div>
-      </div>
 
-      <h2 className="section-title">Trails</h2>
-      <div className="grid">
-        {trails.map((trail) => (
-          <div key={trail._id} className="card detail-card">
-            <h3>{trail.name}</h3>
-            <p className="meta-row"><strong>Difficulty:</strong> {trail.difficulty}</p>
-            <p className="meta-row"><strong>Status:</strong> {trail.status}</p>
-            {trail.pisteType && (
-              <p className="meta-row"><strong>Type:</strong> {trail.pisteType}</p>
-            )}
-            {trail.grooming && (
-              <p className="meta-row"><strong>Grooming:</strong> {trail.grooming}</p>
-            )}
-            {trail.lit && (
-              <p className="meta-row"><strong>Night Skiing:</strong> {trail.lit ? 'Yes' : 'No'}</p>
-            )}
+        <div className="map-legend">
+          <div className="legend-item">
+            <div className="legend-dot" />
+            <span>Resort center</span>
           </div>
-        ))}
-      </div>
+          {showTrails && Object.entries(DIFFICULTIES).map(([key, { label, color }]) => (
+            <div className="legend-item" key={key}>
+              <div className="legend-line" style={{ background: color }} />
+              <span>{label}</span>
+            </div>
+          ))}
+          {showLifts && LIFT_LEGEND.map(([className, label]) => (
+            <div className="legend-item" key={className}>
+              <div className={`legend-line ${className}`} />
+              <span>{label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
 
-      <h2 className="section-title">Lifts</h2>
-      <div className="grid">
-        {lifts.map((lift) => (
-          <div key={lift._id} className="card detail-card">
-            <h3>{lift.name}</h3>
-            <p className="meta-row"><strong>Type:</strong> {lift.aerialway}</p>
-            <p className="meta-row"><strong>Status:</strong> {lift.status}</p>
-            {lift.capacity && (
-              <p className="meta-row"><strong>Capacity:</strong> {lift.capacity} people/hour</p>
-            )}
-            {lift.duration && (
-              <p className="meta-row"><strong>Duration:</strong> {lift.duration} minutes</p>
-            )}
-            {lift.lit && (
-              <p className="meta-row"><strong>Night Operation:</strong> {lift.lit ? 'Yes' : 'No'}</p>
-            )}
-            {lift.oneway && (
-              <p className="meta-row"><strong>One Way:</strong> {lift.oneway ? 'Yes' : 'No'}</p>
-            )}
-          </div>
-        ))}
-      </div>
+      <FeatureList title="Trails" items={trails} renderRow={renderTrail} />
+      <FeatureList title="Lifts" items={lifts} renderRow={renderLift} />
     </div>
   );
 }
 
-export default ResortDetail; 
+export default ResortDetail;

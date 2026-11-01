@@ -1,121 +1,159 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import axios from 'axios';
+import React, { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import useApi from '../hooks/useApi';
+import { withQuery } from '../api/client';
+import { formatLocation, formatStat } from '../utils/format';
+import { EmptyNotice, ErrorNotice, LoadingNotice } from './Feedback';
+import Pagination from './Pagination';
+
+const PAGE_SIZE = 20;
+
+const resortStats = (resort) => [
+  formatStat(resort.total_slope_length_km, 'km'),
+  formatStat(resort.number_of_lifts, 'lifts'),
+  formatStat(resort.elevation_top_m, 'm')
+].filter(Boolean).join(' · ');
 
 function Resorts() {
-  const [resorts, setResorts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [country, setCountry] = useState('');
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  // Filters live in the URL so Back from a resort returns to the same results
+  const [searchParams, setSearchParams] = useSearchParams();
+  const q = searchParams.get('q') || '';
+  const country = searchParams.get('country') || '';
+  const region = searchParams.get('region') || '';
+  const page = Number(searchParams.get('page')) || 1;
 
+  const [searchText, setSearchText] = useState(q);
   useEffect(() => {
-    // Fetch when page changes or on initial mount. Search occurs via form submit.
-    fetchResorts();
+    setSearchText(q);
+  }, [q]);
+  useEffect(() => {
+    window.scrollTo(0, 0);
   }, [page]);
 
-  const fetchResorts = async () => {
-    setLoading(true);
-    try {
-      let url = `/api/resorts?page=${page}&limit=20`;
-      if (searchTerm) {
-        url = `/api/resorts/search?q=${searchTerm}&limit=20`;
-      } else if (country) {
-        url += `&country=${country}`;
-      }
+  const filters = useApi('/resorts/filters');
+  const resorts = useApi(withQuery('/resorts', { q, country, region, page, limit: PAGE_SIZE }));
 
-      const response = await axios.get(url);
-      setResorts(response.data.data);
-      setTotalPages(response.data.pagination?.pages || 1);
-    } catch (error) {
-      console.error('Error fetching resorts:', error);
-    } finally {
-      setLoading(false);
-    }
+  const countries = filters.data?.data || [];
+  const regionGroups = country ? countries.filter((c) => c.country === country) : countries;
+  const list = resorts.data?.data || [];
+  const pagination = resorts.data?.pagination;
+  const hasFilters = Boolean(q || country || region);
+
+  // Empty values are dropped from the URL; any filter change starts again at page 1
+  const updateParams = (changes) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(changes).forEach(([key, value]) => (value ? next.set(key, value) : next.delete(key)));
+    if (!('page' in changes)) next.delete('page');
+    setSearchParams(next);
   };
 
   const handleSearch = (e) => {
     e.preventDefault();
-    setPage(1);
-    fetchResorts();
+    updateParams({ q: searchText.trim() });
   };
 
-  if (loading) {
-    return <div className="loading">Loading resorts...</div>;
-  }
+  // Region options carry their country, so picking one also selects the country
+  const handleRegionChange = (value) => {
+    const [regionCountry, regionName] = value ? value.split('|') : [country, ''];
+    updateParams({ country: regionCountry, region: regionName });
+  };
+
+  const clearFilters = () => {
+    setSearchText('');
+    setSearchParams({});
+  };
 
   return (
     <div className="page-shell">
-      <div className="page-header">
+      <header className="page-header">
         <div className="page-kicker">Directory</div>
         <h1>Ski Resorts</h1>
-        <p>Search the catalog by name or country and jump straight into trail and lift detail.</p>
-      </div>
-      
-      <div className="card filter-panel">
-        <form onSubmit={handleSearch} className="search-form">
-          <input
-            type="text"
-            placeholder="Search resorts..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-bar"
-          />
-          <input
-            type="text"
-            placeholder="Filter by country..."
-            value={country}
-            onChange={(e) => setCountry(e.target.value)}
-            className="search-bar"
-          />
-          <button type="submit" className="btn">Search</button>
-        </form>
+        <p>Search by name, or narrow the ranking down by country and region.</p>
+      </header>
+
+      <form className="filter-bar" role="search" onSubmit={handleSearch}>
+        <input
+          type="search"
+          className="field field--grow"
+          placeholder="Search resorts, regions or countries"
+          aria-label="Search resorts"
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+        />
+        <select
+          className="field"
+          aria-label="Country"
+          value={country}
+          onChange={(e) => updateParams({ country: e.target.value, region: '' })}
+        >
+          <option value="">All countries</option>
+          {countries.map((c) => (
+            <option key={c.country} value={c.country}>
+              {c.country} ({c.resorts.toLocaleString()})
+            </option>
+          ))}
+        </select>
+        <select
+          className="field"
+          aria-label="Region"
+          value={region ? `${country}|${region}` : ''}
+          onChange={(e) => handleRegionChange(e.target.value)}
+        >
+          <option value="">All regions</option>
+          {regionGroups.map((c) => (
+            <optgroup key={c.country} label={c.country}>
+              {c.regions.map((r) => (
+                <option key={r} value={`${c.country}|${r}`}>{r}</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        <button type="submit" className="btn">Search</button>
+      </form>
+
+      <div className="list-summary">
+        <span>
+          {pagination && `${pagination.total.toLocaleString()} ${hasFilters ? 'matching resorts' : 'resorts, ranked'}`}
+        </span>
+        {hasFilters && (
+          <button type="button" className="link-button" onClick={clearFilters}>
+            Clear filters
+          </button>
+        )}
       </div>
 
-      <div className="grid">
-        {resorts.map((resort) => (
-          <div key={resort._id} className="card resort-card">
-            <h3>{resort.name}</h3>
-            <p className="meta-row"><strong>Country:</strong> {resort.location_country}</p>
-            {resort.location_region && (
-              <p className="meta-row"><strong>Region:</strong> {resort.location_region}</p>
-            )}
-            {resort.location_coordinate && (
-              <p className="meta-row">
-                <strong>Location:</strong> {parseFloat(resort.location_coordinate.lat).toFixed(4)}, {parseFloat(resort.location_coordinate.long).toFixed(4)}
-              </p>
-            )}
-            <Link to={`/resorts/${resort._id}`} className="btn">
-              View Details
-            </Link>
-          </div>
-        ))}
-      </div>
+      {resorts.error && <ErrorNotice message={resorts.error} onRetry={resorts.reload} />}
+      {!resorts.data && resorts.loading && <LoadingNotice>Loading resorts…</LoadingNotice>}
+      {resorts.data && list.length === 0 && <EmptyNotice>No resorts match these filters.</EmptyNotice>}
 
-      {totalPages > 1 && (
-        <div className="pagination-bar">
-          <button
-            className="btn btn-secondary"
-            onClick={() => setPage(page - 1)}
-            disabled={page === 1}
-          >
-            Previous
-          </button>
-          <span className="pagination-copy">
-            Page {page} of {totalPages}
-          </span>
-          <button
-            className="btn btn-secondary"
-            onClick={() => setPage(page + 1)}
-            disabled={page === totalPages}
-          >
-            Next
-          </button>
-        </div>
+      {list.length > 0 && (
+        <ul className={`list${resorts.loading ? ' is-stale' : ''}`} aria-busy={resorts.loading}>
+          {list.map((resort) => (
+            <li key={resort._id}>
+              <Link to={`/resorts/${resort._id}`} className="list-row">
+                <div className="list-main">
+                  <span className="list-rank">{resort.rank}</span>
+                  <div className="list-text">
+                    <span className="list-title">{resort.name}</span>
+                    <span className="list-sub">{formatLocation(resort)}</span>
+                  </div>
+                </div>
+                <span className="list-meta">{resortStats(resort)}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {pagination && (
+        <Pagination
+          page={pagination.page}
+          pages={pagination.pages}
+          onChange={(nextPage) => updateParams({ page: String(nextPage) })}
+        />
       )}
     </div>
   );
 }
 
-export default Resorts; 
+export default Resorts;

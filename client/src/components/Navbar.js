@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { logout } from '../store/slices/authSlice';
 
@@ -8,53 +8,41 @@ function Navbar() {
   const { isAuthenticated } = useSelector((state) => state.auth);
   const [logoError, setLogoError] = React.useState(false);
 
-  const handleLogout = () => {
-    dispatch(logout());
-  };
+  const navClass = ({ isActive }) => `nav-link${isActive ? ' is-active' : ''}`;
 
   return (
     <nav className="navbar">
       <div className="navbar-content">
-        <Link to="/" className="logo" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '-35px' }}>
+        <Link to="/" className="logo">
           {logoError ? (
             <span className="logo-text">Ski Resort Finder</span>
           ) : (
-            <img 
-              src={`${process.env.PUBLIC_URL}/logo.jpg`} 
-              alt="Ski Resort Finder Logo" 
-              style={{ height: '40px', width: 'auto' }}
+            <img
+              src={`${process.env.PUBLIC_URL}/logo.jpg`}
+              alt="Ski Resort Finder"
+              className="logo-image"
               onError={() => setLogoError(true)}
             />
           )}
         </Link>
         <ul className="nav-links">
-          <li><Link to="/">Home</Link></li>
-          <li><Link to="/resorts">Resorts</Link></li>
-          <li><Link to="/trails">Trails</Link></li>
-          <li><Link to="/lifts">Lifts</Link></li>
+          <li><NavLink to="/" end className={navClass}>Home</NavLink></li>
+          <li><NavLink to="/resorts" className={navClass}>Resorts</NavLink></li>
+          <li><NavLink to="/trails" className={navClass}>Trails</NavLink></li>
+          <li><NavLink to="/lifts" className={navClass}>Lifts</NavLink></li>
           {isAuthenticated ? (
             <>
-              <li><Link to="/profile">Profile</Link></li>
+              <li><NavLink to="/profile" className={navClass}>Profile</NavLink></li>
               <li>
-                <button 
-                  onClick={handleLogout}
-                  style={{ 
-                    background: 'none', 
-                    border: 'none', 
-                    color: '#333', 
-                    cursor: 'pointer',
-                    fontSize: '16px',
-                    fontWeight: '500'
-                  }}
-                >
+                <button type="button" className="nav-link nav-button" onClick={() => dispatch(logout())}>
                   Logout
                 </button>
               </li>
             </>
           ) : (
             <>
-              <li><Link to="/login">Login</Link></li>
-              <li><Link to="/register">Register</Link></li>
+              <li><NavLink to="/login" className={navClass}>Login</NavLink></li>
+              <li><NavLink to="/register" className={navClass}>Register</NavLink></li>
             </>
           )}
         </ul>
@@ -63,4 +51,4 @@ function Navbar() {
   );
 }
 
-export default Navbar; 
+export default Navbar;

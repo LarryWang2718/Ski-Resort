@@ -8,51 +8,52 @@
   color-scheme: dark;
   --font-display: 'Trebuchet MS', 'Avenir Next', 'Segoe UI', sans-serif;
   --font-body: 'Segoe UI', 'Avenir Next', 'Helvetica Neue', sans-serif;
-  --text-dark: #0d2235;
+
+  /* Original night-navy palette */
+  --navy-900: #07111e;
+  --navy-800: #0b1828;
+  --navy-700: #10243c;
+  --text: #f4fbff;
+  --text-muted: rgba(221, 237, 247, 0.78);
+  --text-faint: rgba(221, 237, 247, 0.5);
+  --line: rgba(197, 226, 245, 0.12);
+  --line-strong: rgba(210, 234, 246, 0.24);
+  --surface-hover: rgba(224, 241, 251, 0.06);
+  --field-bg: rgba(224, 241, 251, 0.08);
   --accent: #0d6c8f;
+  --accent-light: #1490ba;
+  --accent-text: #8fd3ec;
+  --danger-bg: rgba(183, 28, 28, 0.16);
+  --danger-line: rgba(255, 160, 160, 0.32);
+  --danger-text: #ffc9c9;
 }
 
 html {
-  background: transparent !important;
   scroll-behavior: smooth;
-}
-
-#root {
-  background: transparent !important;
 }
 
 body {
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: transparent !important;
+  background: var(--navy-800);
   min-height: 100vh;
-  color: var(--text-dark);
+  color: var(--text);
+  line-height: 1.5;
 }
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
+a {
+  color: var(--accent-text);
+}
+
 .container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 20px 40px;
-  background: transparent !important;
-}
-
-.card {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 249, 252, 0.95));
-  border-radius: 24px;
-  box-shadow: 0 24px 60px rgba(2, 12, 22, 0.18);
-  padding: 24px;
-  margin: 10px 0;
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
-}
-
-.card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 28px 70px rgba(2, 12, 22, 0.22);
 }
 
 .btn {
@@ -72,8 +73,9 @@ code {
   justify-content: center;
   gap: 8px;
   text-decoration: none;
-  transition: background 0.2s ease, transform 0.05s ease, box-shadow 0.2s ease;
-  box-shadow: 0 12px 24px rgba(16, 77, 108, 0.25);
+  white-space: nowrap;
+  transition: background 0.2s ease, transform 0.05s ease;
+  box-shadow: 0 8px 18px rgba(16, 77, 108, 0.22);
 }
 
 .btn:hover {
@@ -82,6 +84,11 @@ code {
 
 .btn:active {
   transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .btn-ghost {
@@ -95,10 +102,6 @@ code {
   background: rgba(223, 239, 248, 0.12);
 }
 
-.card .btn {
-  margin-top: 12px;
-}
-
 .btn-secondary {
   background: rgba(228, 239, 245, 0.12);
   color: #f0f8fb;
@@ -110,41 +113,70 @@ code {
   background: rgba(228, 239, 245, 0.22);
 }
 
-.search-bar {
+.btn-small {
+  padding: 9px 14px;
+  font-size: 13px;
+}
+
+.btn-block {
   width: 100%;
-  padding: 14px 16px;
-  border: 1px solid #c9dbe6;
-  border-radius: 16px;
-  font-size: 16px;
-  background: rgba(248, 252, 255, 0.96);
-  color: var(--text-dark);
 }
 
-.search-bar:focus {
+.link-button {
+  background: none;
+  border: none;
+  color: var(--accent-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+/* Inputs and selects sit directly on the dark page */
+.field {
+  height: 46px;
+  min-width: 0;
+  padding: 0 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: var(--field-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+}
+
+.field::placeholder {
+  color: var(--text-faint);
+}
+
+.field:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 4px rgba(13, 108, 143, 0.12);
+  border-color: var(--accent-light);
+  box-shadow: 0 0 0 3px rgba(20, 144, 186, 0.25);
 }
 
-.loading {
-  text-align: center;
-  padding: 40px;
-  font-size: 18px;
-  color: white;
+.field option,
+.field optgroup {
+  background: var(--navy-700);
+  color: var(--text);
 }
 
-.error {
-  background: #f8d7da;
-  color: #721c24;
-  padding: 10px;
-  border-radius: 5px;
-  margin: 10px 0;
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--text-muted);
 }
 
-.success {
-  background: #d4edda;
-  color: #155724;
-  padding: 10px;
-  border-radius: 5px;
-  margin: 10px 0;
+.notice--error {
+  border-color: var(--danger-line);
+  background: var(--danger-bg);
+  color: var(--danger-text);
 }

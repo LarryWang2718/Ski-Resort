@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { logout, updateProfile } from '../../store/slices/authSlice';
+import { logout, updateProfile, clearError } from '../../store/slices/authSlice';
+import { ErrorNotice } from '../Feedback';
+
+const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
 function Profile() {
   const [formData, setFormData] = useState({
@@ -12,6 +15,7 @@ function Profile() {
   });
 
   const [isEditing, setIsEditing] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -34,19 +38,33 @@ function Profile() {
   }, [isAuthenticated, navigate, user]);
 
   const handleChange = (e) => {
+    setFormError('');
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const updateData = { ...formData };
     if (!updateData.password) {
       delete updateData.password;
+    } else if (!PASSWORD_PATTERN.test(updateData.password)) {
+      setFormError('New password needs at least 8 characters, with an uppercase letter, a lowercase letter and a number.');
+      return;
     }
-    dispatch(updateProfile(updateData));
+
+    // Stay in edit mode if the save fails so nothing typed is lost
+    const result = await dispatch(updateProfile(updateData));
+    if (updateProfile.fulfilled.match(result)) {
+      setIsEditing(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setFormError('');
+    dispatch(clearError());
     setIsEditing(false);
   };
 
@@ -60,123 +78,104 @@ function Profile() {
   }
 
   return (
-    <div style={{ maxWidth: '600px', margin: '0 auto', padding: '2rem 0' }}>
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-          <h2>Profile</h2>
-          <button onClick={handleLogout} className="btn btn-secondary">
-            Logout
-          </button>
-        </div>
+    <div className="page-shell auth-shell">
+      <header className="page-header">
+        <div className="page-kicker">Account</div>
+        <h1>Profile</h1>
+      </header>
 
-        {error && (
-          <div className="error">
-            {error}
-          </div>
-        )}
+      {(formError || error) && <ErrorNotice message={formError || error} />}
 
-        {!isEditing ? (
-          <div>
-            <div style={{ marginBottom: '1rem' }}>
-              <strong>Name:</strong> {user?.firstName} {user?.lastName}
+      {!isEditing ? (
+        <>
+          <dl className="detail-list">
+            <div>
+              <dt>Name</dt>
+              <dd>{user?.firstName} {user?.lastName}</dd>
             </div>
-            <div style={{ marginBottom: '1rem' }}>
-              <strong>Email:</strong> {user?.email}
+            <div>
+              <dt>Email</dt>
+              <dd>{user?.email}</dd>
             </div>
-            <div style={{ marginBottom: '1rem' }}>
-              <strong>Role:</strong> {user?.role || 'user'}
+            <div>
+              <dt>Role</dt>
+              <dd>{user?.role || 'user'}</dd>
             </div>
-            <button
-              onClick={() => setIsEditing(true)}
-              className="btn"
-              style={{ marginRight: '1rem' }}
-            >
+          </dl>
+          <div className="form-actions">
+            <button type="button" onClick={() => setIsEditing(true)} className="btn">
               Edit Profile
             </button>
+            <button type="button" onClick={handleLogout} className="btn btn-secondary">
+              Logout
+            </button>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: '1rem' }}>
-              <label htmlFor="firstName" style={{ display: 'block', marginBottom: '0.5rem' }}>
-                First Name
-              </label>
+        </>
+      ) : (
+        <form className="form-stack" onSubmit={handleSubmit}>
+          <div className="form-row">
+            <label className="form-field">
+              <span>First name</span>
               <input
                 type="text"
-                id="firstName"
                 name="firstName"
                 value={formData.firstName}
                 onChange={handleChange}
-                className="search-bar"
+                className="field"
                 required
               />
-            </div>
+            </label>
 
-            <div style={{ marginBottom: '1rem' }}>
-              <label htmlFor="lastName" style={{ display: 'block', marginBottom: '0.5rem' }}>
-                Last Name
-              </label>
+            <label className="form-field">
+              <span>Last name</span>
               <input
                 type="text"
-                id="lastName"
                 name="lastName"
                 value={formData.lastName}
                 onChange={handleChange}
-                className="search-bar"
+                className="field"
                 required
               />
-            </div>
+            </label>
+          </div>
 
-            <div style={{ marginBottom: '1rem' }}>
-              <label htmlFor="email" style={{ display: 'block', marginBottom: '0.5rem' }}>
-                Email
-              </label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                className="search-bar"
-                required
-              />
-            </div>
+          <label className="form-field">
+            <span>Email</span>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              className="field"
+              required
+            />
+          </label>
 
-            <div style={{ marginBottom: '1rem' }}>
-              <label htmlFor="password" style={{ display: 'block', marginBottom: '0.5rem' }}>
-                New Password (leave blank to keep current)
-              </label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                className="search-bar"
-              />
-            </div>
+          <label className="form-field">
+            <span>New password</span>
+            <input
+              type="password"
+              name="password"
+              autoComplete="new-password"
+              value={formData.password}
+              onChange={handleChange}
+              className="field"
+            />
+            <small className="form-hint">Leave blank to keep your current password.</small>
+          </label>
 
-            <div style={{ marginTop: '1rem' }}>
-              <button
-                type="submit"
-                className="btn"
-                style={{ marginRight: '1rem' }}
-                disabled={loading}
-              >
-                {loading ? 'Updating...' : 'Save Changes'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsEditing(false)}
-                className="btn btn-secondary"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
+          <div className="form-actions">
+            <button type="submit" className="btn" disabled={loading}>
+              {loading ? 'Saving…' : 'Save Changes'}
+            </button>
+            <button type="button" onClick={handleCancel} className="btn btn-secondary">
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }
 
-export default Profile; 
+export default Profile;
