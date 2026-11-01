@@ -12,6 +12,8 @@
 - Import script that swaps in new data only after a complete run
 - Server test suite (node:test) and GitHub Actions CI
 - Docker Compose setup (API plus nginx-served client)
+- AI assistant: streamed answers from read-only database tools, daily quotas and a global budget, a per-user lease, shutdown draining, refusal fallback, map highlighting, a mock model for development and a graded eval
+- Numeric resort stats, GeoJSON locations (2dsphere) and accent-insensitive names, kept in sync by both the migration and the import
 
 ### Removed
 - User reviews (no longer part of the product)
@@ -21,16 +23,15 @@
 - `server/models/Weather.js`: schema and condition scoring for a future weather feature
 
 ## Next
-
-### AI ski resort assistant (planning)
-A chat assistant that answers questions such as "resorts in Austria with 200 km of slopes" by calling tools that query the database.
-
-### Data improvements
-- Store resort stats (slope length, elevation, snowfall) as numbers so they can be filtered and sorted
-- Store resort locations as GeoJSON with a 2dsphere index for "near me" queries
+- Run the eval against Claude and choose the effort level (low or medium) from measured pass rate, cost and latency
+- Resumable answers: a dropped connection currently ends the turn; an event log (for example Redis Streams with `Last-Event-ID`) would let the browser reconnect to the same answer
+- Move the general rate limiter to a shared store; it counts per instance today
+- Admin view of assistant usage: latency percentiles, cost, error codes and cache-hit ratio (the data is already stored per turn)
+- Search the resort list by the numeric stats, as the assistant already can
 
 ## Known Limitations
 - Trail and lift status is not live. The data is a July 2025 OpenStreetMap snapshot, and OSM rarely records whether a run is open.
 - The login token is kept in localStorage for 30 days and cannot be revoked server-side.
 - The 5-attempt account lockout is keyed by email, so it can be triggered by someone who knows the address.
 - Server tests cover request handling without a database; there are no database integration or browser end-to-end tests yet.
+- The assistant has no live information (opening status, snow, weather, prices) and says so.
