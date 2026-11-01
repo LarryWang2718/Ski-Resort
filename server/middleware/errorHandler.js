@@ -1,11 +1,5 @@
 const HttpError = require('../utils/httpError');
-
-const DB_UNAVAILABLE = new Set([
-  'MongoServerSelectionError',
-  'MongooseServerSelectionError',
-  'MongoNotConnectedError',
-  'MongoNetworkError'
-]);
+const { isDatabaseUnavailable } = require('../utils/dbErrors');
 
 const notFound = (req, res, next) => {
   next(new HttpError(404, `Route ${req.originalUrl} not found`));
@@ -28,7 +22,7 @@ const errorHandler = (err, req, res, next) => {
   } else if (err.code === 11000) {
     status = 409;
     message = `${Object.keys(err.keyValue || {}).join(', ') || 'Value'} already in use`;
-  } else if (DB_UNAVAILABLE.has(err.name)) {
+  } else if (isDatabaseUnavailable(err)) {
     status = 503;
     message = 'Database temporarily unavailable. Try again shortly.';
   }

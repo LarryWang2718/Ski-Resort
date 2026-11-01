@@ -26,11 +26,12 @@ const toLocation = (coordinate) => {
   return valid ? { type: 'Point', coordinates: [long, lat] } : undefined;
 };
 
-// Lowercase without accents, so "zurs" finds "Zürs" through an index
+// Lowercase, without accents and punctuation, so "zurs" finds "Zürs" and "st anton" finds "St.Anton"
 const foldText = (text) => String(text ?? '')
   .normalize('NFD')
   .replace(/[̀-ͯ]/g, '')
   .toLowerCase()
+  .replace(/[^\p{L}\p{N}]+/gu, ' ')
   .trim();
 
 const deriveResortFields = (raw) => ({

@@ -24,9 +24,10 @@ test('toLocation rejects missing, out-of-range and placeholder coordinates', () 
   assert.equal(toLocation({ lat: 0, long: 0 }), undefined);
 });
 
-test('foldText lowercases and removes accents', () => {
+test('foldText lowercases and removes accents and punctuation', () => {
   assert.equal(foldText(' Zürs am Arlberg '), 'zurs am arlberg');
   assert.equal(foldText('Les 3 Vallées'), 'les 3 vallees');
+  assert.equal(foldText('Ski Arlberg (St.Anton)'), 'ski arlberg st anton');
   assert.equal(foldText(undefined), '');
 });
 
@@ -46,5 +47,5 @@ test('deriveResortFields maps every stat and keeps missing ones as null', () => 
     slope_km: 412, lifts: 68, slopes: null, top_elevation_m: 3330, vertical_m: 1980, snowfall_cm: null
   });
   assert.deepEqual(fields.location.coordinates, [7.2263, 46.1013]);
-  assert.equal(fields.search_name, '4 vallees (verbier)');
+  assert.equal(fields.search_name, '4 vallees verbier');
 });

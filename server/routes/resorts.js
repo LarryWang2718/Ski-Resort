@@ -6,31 +6,11 @@ const Trail = require('../models/Trail');
 const Lift = require('../models/Lift');
 const asyncHandler = require('../utils/asyncHandler');
 const HttpError = require('../utils/httpError');
-const { parsePagination, stringParam, containsText } = require('../utils/query');
+const { parsePagination } = require('../utils/query');
+const { buildResortFilter, listCountries } = require('../services/resortQueries');
 
 // `members` duplicates the trail/lift references and can hold ~1,000 ids per resort
 const RESORT_FIELDS = '-members -__v';
-
-// ?q= matches name, region or country; ?country= and ?region= are exact (dropdown) values
-const buildResortFilter = (query) => {
-  const filter = {};
-  const q = stringParam(query.q);
-  const country = stringParam(query.country);
-  const region = stringParam(query.region);
-
-  if (q) {
-    const pattern = containsText(q);
-    filter.$or = [
-      { name: pattern },
-      { location_region: pattern },
-      { location_country: pattern }
-    ];
-  }
-  if (country) filter.location_country = country;
-  if (region) filter.location_region = region;
-
-  return filter;
-};
 
 // GET /api/resorts - Resorts sorted by rank, with search, filters and pagination
 router.get('/', asyncHandler(async (req, res) => {
@@ -56,20 +36,9 @@ router.get('/', asyncHandler(async (req, res) => {
 
 // GET /api/resorts/filters - Countries with their regions, for filter dropdowns
 router.get('/filters', asyncHandler(async (req, res) => {
-  const countries = await Resort.aggregate([
-    { $group: { _id: { country: '$location_country', region: '$location_region' }, resorts: { $sum: 1 } } },
-    { $sort: { '_id.region': 1 } },
-    { $group: { _id: '$_id.country', regions: { $push: '$_id.region' }, resorts: { $sum: '$resorts' } } },
-    { $sort: { _id: 1 } }
-  ]);
-
   res.json({
     success: true,
-    data: countries.map(({ _id, regions, resorts }) => ({
-      country: _id,
-      resorts,
-      regions: regions.filter(Boolean)
-    }))
+    data: await listCountries()
   });
 }));
 
