@@ -225,14 +225,15 @@ userSchema.virtual('isLocked').get(function() {
 });
 
 // Hash password before saving
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function() {
+  this.updatedAt = Date.now();
+
   if (!this.isModified('password')) {
-    next();
+    return;
   }
-  
+
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
-  this.updatedAt = Date.now();
 });
 
 // Compare password method
