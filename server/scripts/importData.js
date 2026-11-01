@@ -12,6 +12,7 @@ const connectDB = require('../config/database');
 const Resort = require('../models/Resort');
 const Trail = require('../models/Trail');
 const Lift = require('../models/Lift');
+const { deriveResortFields } = require('../utils/resortFields');
 
 const DATA_FILE = process.argv[2] || path.join(__dirname, '../db/ski-resorts-with-members.json');
 const BATCH_SIZE = 1000;
@@ -134,7 +135,8 @@ const buildDocuments = (resortsData) => {
       number_of_slopes: resortData.number_of_slopes,
       annual_snowfall_cm: resortData.annual_snowfall_cm,
       number_of_matches: resortData.number_of_matches,
-      members
+      members,
+      ...deriveResortFields(resortData)
     }));
   }
 

@@ -1,4 +1,5 @@
-// Idempotent schema migration: numeric resort rank, query indexes, unique user email.
+// Idempotent schema migration: numeric resort rank and stats, GeoJSON locations,
+// query indexes, unique user email.
 // Run with `npm run migrate` from server/. Safe to re-run.
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
@@ -8,6 +9,9 @@ const Resort = require('../models/Resort');
 const Trail = require('../models/Trail');
 const Lift = require('../models/Lift');
 const User = require('../models/User');
+const { deriveResortFields } = require('../utils/resortFields');
+
+const BATCH_SIZE = 500;
 
 const migrate = async () => {
   // Build indexes explicitly below instead of on connect
@@ -45,7 +49,33 @@ const migrate = async () => {
     console.log('Dropped non-unique email_1 index');
   }
 
-  // 3. Create every index declared in the schemas; existing indexes are left untouched
+  // 3. Numeric stats, a GeoJSON location and an accent-free name, recomputed from the text fields
+  let operations = [];
+  let updated = 0;
+  let withoutLocation = 0;
+  const flush = async () => {
+    if (operations.length === 0) return;
+    const result = await Resort.collection.bulkWrite(operations, { ordered: false });
+    updated += result.modifiedCount;
+    operations = [];
+  };
+  for await (const resort of Resort.collection.find({}, { projection: { members: 0 } })) {
+    const { stats, location, search_name } = deriveResortFields(resort);
+    if (!location) withoutLocation++;
+    operations.push({
+      updateOne: {
+        filter: { _id: resort._id },
+        update: location
+          ? { $set: { stats, location, search_name } }
+          : { $set: { stats, search_name }, $unset: { location: 1 } }
+      }
+    });
+    if (operations.length === BATCH_SIZE) await flush();
+  }
+  await flush();
+  console.log(`Updated derived fields on ${updated} resorts (${withoutLocation} without valid coordinates)`);
+
+  // 4. Create every index declared in the schemas; existing indexes are left untouched
   for (const Model of [Resort, Trail, Lift, User]) {
     await Model.createIndexes();
     const names = (await Model.collection.indexes()).map((index) => index.name);
