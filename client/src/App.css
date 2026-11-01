@@ -392,6 +392,53 @@ a.list-row:focus-visible {
   border-radius: 18px;
 }
 
+.map-placeholder {
+  padding: 3rem 1.5rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.map-marker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.map-marker-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #000;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.map-marker-label {
+  color: #333;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.8), 0 0 6px rgba(255, 255, 255, 0.6);
+}
+
+/* Mapbox popups are white, so their text is dark */
+.map-popup {
+  min-width: 180px;
+  padding: 0.25rem;
+  color: #0d2235;
+  font-size: 0.9rem;
+}
+
+.map-popup h3 {
+  margin-bottom: 0.4rem;
+  font-size: 1rem;
+}
+
+.map-popup p + p {
+  margin-top: 0.25rem;
+  color: #37556b;
+}
+
 .map-controls {
   display: flex;
   gap: 0.8rem;
