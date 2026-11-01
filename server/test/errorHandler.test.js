@@ -60,3 +60,19 @@ test('unexpected errors become 500 without leaking the message', () => {
   assert.equal(res.body.message, 'Internal server error');
   assert.ok(!JSON.stringify(res.body).includes('secret internal detail'));
 });
+
+test('HttpError codes and details reach the client', () => {
+  const res = run(new HttpError(429, 'Daily limit reached', { code: 'quota_exceeded', details: { resetsAt: '2026-11-02T00:00:00.000Z' } }));
+  assert.equal(res.statusCode, 429);
+  assert.deepEqual(res.body, {
+    success: false, message: 'Daily limit reached', code: 'quota_exceeded', resetsAt: '2026-11-02T00:00:00.000Z'
+  });
+});
+
+test('errors after a streamed response has started are handed to Express', () => {
+  const err = new Error('mid-stream');
+  let forwarded;
+  const res = { headersSent: true, status() { throw new Error('status must not be set'); } };
+  errorHandler(err, {}, res, (error) => { forwarded = error; });
+  assert.equal(forwarded, err);
+});

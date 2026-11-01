@@ -9,6 +9,7 @@ const resortRoutes = require('./routes/resorts');
 const trailRoutes = require('./routes/trails');
 const liftRoutes = require('./routes/lifts');
 const authRoutes = require('./routes/auth');
+const { createAssistantRouter } = require('./routes/assistant');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 const HttpError = require('./utils/httpError');
 
@@ -82,6 +83,7 @@ app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/resorts', resortRoutes);
 app.use('/api/trails', trailRoutes);
 app.use('/api/lifts', liftRoutes);
+app.use('/api/assistant', createAssistantRouter());
 
 // API Documentation route
 app.get('/', (req, res) => {
@@ -113,6 +115,13 @@ app.get('/', (req, res) => {
         'GET /api/lifts/search': 'Search lifts',
         'GET /api/lifts/stats/aerialway': 'Get lift type statistics',
         'GET /api/lifts/stats/status': 'Get lift status statistics'
+      },
+      assistant: {
+        'POST /api/assistant/conversations': 'Start a conversation, optionally about one resort (Bearer token)',
+        'GET /api/assistant/conversations': 'Recent conversations (Bearer token)',
+        'GET /api/assistant/conversations/:id': 'One conversation with its turns (Bearer token)',
+        'POST /api/assistant/conversations/:id/turns': 'Ask a question; the answer streams as server-sent events (Bearer token)',
+        'GET /api/assistant/quota': 'Questions left today (Bearer token)'
       },
       auth: {
         'POST /api/auth/register': 'Create an account',

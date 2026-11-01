@@ -9,6 +9,8 @@ const Resort = require('../models/Resort');
 const Trail = require('../models/Trail');
 const Lift = require('../models/Lift');
 const User = require('../models/User');
+const AssistantConversation = require('../models/AssistantConversation');
+const AssistantUsage = require('../models/AssistantUsage');
 const { deriveResortFields } = require('../utils/resortFields');
 
 const BATCH_SIZE = 500;
@@ -76,7 +78,7 @@ const migrate = async () => {
   console.log(`Updated derived fields on ${updated} resorts (${withoutLocation} without valid coordinates)`);
 
   // 4. Create every index declared in the schemas; existing indexes are left untouched
-  for (const Model of [Resort, Trail, Lift, User]) {
+  for (const Model of [Resort, Trail, Lift, User, AssistantConversation, AssistantUsage]) {
     await Model.createIndexes();
     const names = (await Model.collection.indexes()).map((index) => index.name);
     console.log(`${Model.modelName} indexes: ${names.join(', ')}`);

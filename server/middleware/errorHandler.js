@@ -8,6 +8,11 @@ const notFound = (req, res, next) => {
 // Map known error types to client-safe responses; anything unexpected becomes a logged 500
 // eslint-disable-next-line no-unused-vars
 const errorHandler = (err, req, res, next) => {
+  // Once a streamed response has started, the status can't change; Express closes the connection
+  if (res.headersSent) {
+    return next(err);
+  }
+
   let status = err.status || err.statusCode || 500;
   let message = err.message;
   let errors;
@@ -27,14 +32,17 @@ const errorHandler = (err, req, res, next) => {
     message = 'Database temporarily unavailable. Try again shortly.';
   }
 
-  if (status >= 500) {
+  // HttpErrors are deliberate (busy, not configured); anything else at 5xx is worth a log line
+  if (status >= 500 && !(err instanceof HttpError)) {
     console.error(err);
-    if (status === 500) message = 'Internal server error';
   }
+  if (status === 500) message = 'Internal server error';
 
-  res.status(status).json({
+  return res.status(status).json({
     success: false,
     message,
+    ...(err instanceof HttpError && err.code && { code: err.code }),
+    ...(err instanceof HttpError && err.details),
     ...(errors && { errors }),
     ...(status === 500 && process.env.NODE_ENV === 'development' && { detail: err.message })
   });

@@ -118,8 +118,16 @@ const runTurn = async ({
       touch();
       const callStarted = Date.now();
       let callFirstText = null;
+      let callText = '';
       // Text from an earlier step (rare: the model mostly thinks between tool calls) gets a paragraph break
       let needsBreak = display.text.length > 0 && !display.text.endsWith('\n');
+      const showText = (delta) => {
+        const text = needsBreak ? `\n\n${delta}` : delta;
+        needsBreak = false;
+        callText += delta;
+        display.text += text;
+        emit('text', { delta: text });
+      };
 
       const message = await model.streamTurn(
         buildRequest({ settings, limits, definitions: toolbox.toolDefinitions, messages: [...history, ...turnMessages] }),
@@ -130,10 +138,7 @@ const runTurn = async ({
             touch();
             callFirstText ??= Date.now();
             metrics.ttftMs ??= Date.now() - startedAt;
-            const text = needsBreak ? `\n\n${delta}` : delta;
-            needsBreak = false;
-            display.text += text;
-            emit('text', { delta: text });
+            showText(delta);
           }
         }
       );
@@ -161,6 +166,9 @@ const runTurn = async ({
       });
 
       const content = withoutDeclinedAttempt(message.content || []);
+      // A model that didn't stream its text (the stand-ins can) still gets its answer shown
+      const finalText = content.filter((block) => block.type === 'text').map((block) => block.text).join('');
+      if (!callText && finalText && message.stop_reason !== 'refusal') showText(finalText);
       switch (message.stop_reason) {
         case 'end_turn':
         case 'stop_sequence':

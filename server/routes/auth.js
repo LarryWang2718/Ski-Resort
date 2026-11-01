@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
-const { body, validationResult } = require('express-validator');
+const { body } = require('express-validator');
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
+const validate = require('../middleware/validate');
 const asyncHandler = require('../utils/asyncHandler');
 const HttpError = require('../utils/httpError');
 
@@ -22,24 +23,6 @@ const toPublicUser = (user) => ({
   role: user.role,
   token: generateToken(user._id)
 });
-
-const validate = (req, res, next) => {
-  const errors = validationResult(req);
-  if (errors.isEmpty()) {
-    return next();
-  }
-
-  const details = errors.array().map((error) => ({
-    field: error.path,
-    message: error.msg
-  }));
-
-  return res.status(400).json({
-    success: false,
-    message: details[0].message,
-    errors: details
-  });
-};
 
 // Each validator needs its own message; withMessage only applies to the check right before it
 const nameRule = (field, label) => body(field)

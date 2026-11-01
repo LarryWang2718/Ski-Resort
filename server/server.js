@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const validateEnv = require('./config/env');
 const connectDB = require('./config/database');
 const app = require('./app');
+const assistant = require('./assistant');
 
 const SHUTDOWN_TIMEOUT_MS = 10000;
 
@@ -33,6 +34,9 @@ const start = async () => {
       await mongoose.connection.close();
       process.exit(exitCode);
     });
+    // Streaming answers hold their connections open: refuse new turns, then stop the rest
+    // within the force-exit window so the server can close
+    assistant.drain(5000).catch((error) => console.error('Draining assistant turns failed:', error));
   };
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));
