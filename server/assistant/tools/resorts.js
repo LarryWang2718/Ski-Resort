@@ -176,7 +176,10 @@ const getResortDetails = {
     return {
       result: { resorts: details },
       summary: found.length > 0 ? found.map((resort) => resort.name).join(', ') : 'not found',
-      resorts: found.map(({ id, name, country, region, slope_km }) => compact({ id, name, country, region, slope_km }))
+      // The page shows these side by side under a comparison
+      resorts: found.map(({ id, name, country, region, slope_km, lifts, top_elevation_m, vertical_m }) => compact({
+        id, name, country, region, slope_km, lifts, top_elevation_m, vertical_m
+      }))
     };
   }
 };

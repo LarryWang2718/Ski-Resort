@@ -96,7 +96,7 @@ const runTurn = async ({
   const finish = (status) => ({ status, messages: status === 'refused' ? [] : turnMessages, ...snapshot() });
 
   const runToolCall = async (block, index) => {
-    emit('tool_start', { id: block.id, label: toolbox.describeToolCall(block.name, block.input) });
+    emit('tool_start', { id: block.id, name: block.name, label: toolbox.describeToolCall(block.name, block.input) });
     const started = Date.now();
     const output = index < limits.maxToolsPerCall
       ? await withTimeout(toolbox.runTool(block.name, block.input), limits.toolTimeoutMs, () => ({

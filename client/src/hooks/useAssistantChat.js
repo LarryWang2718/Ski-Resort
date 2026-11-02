@@ -22,7 +22,7 @@ const fromServer = (turn) => ({
   status: turn.status,
   phase: null,
   text: turn.text,
-  tools: turn.tools.map((tool) => ({ id: tool.id, label: tool.label, summary: tool.summary, state: tool.ok ? 'ok' : 'error' })),
+  tools: turn.tools.map((tool) => ({ id: tool.id, name: tool.name, label: tool.label, summary: tool.summary, state: tool.ok ? 'ok' : 'error' })),
   resorts: turn.resorts,
   mapLinks: turn.mapLinks,
   error: turn.error ? { ...turn.error, retryable: turn.status === 'failed' } : null
@@ -38,7 +38,7 @@ const updateTurn = (turn, action) => {
     case 'status':
       return { ...turn, phase: data.phase };
     case 'tool_start':
-      return { ...turn, phase: 'tools', tools: [...turn.tools, { id: data.id, label: data.label, state: 'running' }] };
+      return { ...turn, phase: 'tools', tools: [...turn.tools, { id: data.id, name: data.name, label: data.label, state: 'running' }] };
     case 'tool_end':
       return {
         ...turn,
