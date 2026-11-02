@@ -12,7 +12,7 @@ const assistant = require('../assistant');
 const { runTurn: defaultRunTurn } = require('../assistant/agent');
 const { TurnError, classifyError } = require('../assistant/errors');
 const { buildUserContent, promptVersion } = require('../assistant/prompt');
-const { replayHistory } = require('../assistant/store');
+const { replayHistory, MAX_STORED_TURNS } = require('../assistant/store');
 const { openEventStream } = require('../assistant/sse');
 const { toUsd } = require('../assistant/cost');
 const { logEvent } = require('../assistant/log');
@@ -22,8 +22,12 @@ const REFUSAL_TEXT = 'I can\'t help with that one.';
 // Logs identify users without storing their ids next to usage data
 const userHash = (userId) => crypto.createHash('sha256').update(String(userId)).digest('hex').slice(0, 12);
 
+// Failed and stopped turns are stored too, and once the store's cap is reached nothing more can be saved
 const isFull = (conversation, limits) => conversation.committedTurns >= limits.maxTurnsPerConversation
-  || conversation.lastContextTokens >= limits.maxContextTokens;
+  || conversation.lastContextTokens >= limits.maxContextTokens
+  || (conversation.turns?.length || 0) >= MAX_STORED_TURNS;
+
+const conversationFull = () => new HttpError(409, 'This conversation is full. Start a new one.', { code: 'conversation_full' });
 
 // What the page needs from a stored turn; API messages and thinking never leave the server
 const toTurnView = (turn) => ({
@@ -117,10 +121,6 @@ const createAssistantRouter = ({
     const logContext = { requestId, conversationId: String(conversation._id), turnId, user: userHash(userId) };
 
     const stream = openEventStream(res);
-    // Stop or a closed tab ends the response early: stop the model so tokens stop being billed
-    res.on('close', () => {
-      if (!res.writableEnded) controller.abort(new TurnError('stopped'));
-    });
     stream.send('start', { turnId });
 
     let result;
@@ -223,19 +223,25 @@ const createAssistantRouter = ({
       .isLength({ min: 1, max: limits.maxMessageLength })
       .withMessage(`Message must be 1 to ${limits.maxMessageLength} characters`)
   ], validate, asyncHandler(async (req, res) => {
+    // Stop or a closed tab ends the response early: stop the model so tokens stop being billed.
+    // Watched from the start, so a browser that leaves during admission doesn't start paid work.
+    const controller = new AbortController();
+    const stopIfGone = () => {
+      if (!res.writableEnded) controller.abort(new TurnError('stopped'));
+    };
+    res.on('close', stopIfGone);
+    if (res.destroyed) stopIfGone();
+
     const model = getModel();
     if (!model) {
       throw new HttpError(503, 'The assistant isn\'t configured yet.', { code: 'assistant_not_configured' });
     }
 
-    const conversation = await loadConversation(req, { withApi: true });
-    if (isFull(conversation, limits)) {
-      throw new HttpError(409, 'This conversation is full. Start a new one.', { code: 'conversation_full' });
-    }
+    // Checks only; the history is read once this user's lease is held
+    if (isFull(await loadConversation(req), limits)) throw conversationFull();
 
     // Cheapest check first: shed load on this instance before touching the database again
     const requestId = crypto.randomUUID();
-    const controller = new AbortController();
     const slot = registry.tryAcquire(requestId, controller);
     if (slot !== 'ok') {
       res.set('Retry-After', '3');
@@ -246,6 +252,25 @@ const createAssistantRouter = ({
 
     try {
       const admission = await quota.admit(req.user._id, requestId);
+      // Nothing was spent: the turn and the lease go back
+      const giveBack = () => quota.settle(req.user._id, requestId, { admittedAt: admission.admittedAt, usage: {}, refund: true })
+        .catch((error) => log('assistant.settle_failed', { requestId, error: error.message }));
+
+      // Read again under the lease, while no other turn of this user can save: a request that raced
+      // another would otherwise answer old history, then fail to save the answer
+      let conversation;
+      try {
+        conversation = await loadConversation(req, { withApi: true });
+        if (isFull(conversation, limits)) throw conversationFull();
+      } catch (error) {
+        await giveBack();
+        throw error;
+      }
+      // The browser left during admission: don't start paid work with no one to read it
+      if (res.destroyed) {
+        await giveBack();
+        return;
+      }
       await streamTurn({ req, res, model, conversation, admission, requestId, controller });
     } finally {
       registry.release(requestId);

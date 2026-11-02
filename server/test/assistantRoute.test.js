@@ -12,6 +12,7 @@ const { errorHandler } = require('../middleware/errorHandler');
 const { createScriptedModel, textMessage, toolUseMessage } = require('../assistant/fakeModel');
 const { createTurnRegistry } = require('../assistant/concurrency');
 const { toolDefinitions } = require('../assistant/tools');
+const { MAX_STORED_TURNS } = require('../assistant/store');
 const HttpError = require('../utils/httpError');
 const { config } = require('../assistant/config');
 
@@ -127,6 +128,12 @@ const ask = (server, id, message, options = {}) => server.call(`/conversations/$
   method: 'POST', body: { turnId: crypto.randomUUID(), message }, ...options
 });
 
+const waitFor = async (condition) => {
+  for (let i = 0; i < 40 && !condition(); i += 1) {
+    await new Promise((resolve) => { setTimeout(resolve, 25); });
+  }
+};
+
 test('every endpoint needs a logged-in user', async () => {
   const server = await startServer({ model: createScriptedModel([]) });
   try {
@@ -222,6 +229,91 @@ test('bad input, foreign conversations and full conversations are refused before
     assert.equal(full.status, 409);
     assert.equal((await full.json()).code, 'conversation_full');
     assert.equal(server.quota.admitted.length, 0);
+  } finally {
+    await server.close();
+  }
+});
+
+test('a conversation whose stored turns reached the cap is full, even with few answers saved', async () => {
+  const server = await startServer({ model: createScriptedModel([]) });
+  try {
+    const conversation = await newConversation(server);
+    server.store.conversations.get(conversation.id).turns = Array.from({ length: MAX_STORED_TURNS }, (_, i) => ({
+      turnId: `t${i}`, status: 'stopped', userText: 'Hi', apiJson: '', display: { text: '' }
+    }));
+
+    assert.equal((await (await server.call(`/conversations/${conversation.id}`)).json()).data.full, true);
+    const response = await ask(server, conversation.id, 'Hi');
+    assert.equal(response.status, 409);
+    assert.equal((await response.json()).code, 'conversation_full');
+    assert.equal(server.quota.admitted.length, 0);
+  } finally {
+    await server.close();
+  }
+});
+
+test('a browser that leaves during admission starts no model work and gets its turn back', async () => {
+  const model = createScriptedModel([{ message: textMessage('No one reads this.') }]);
+  const quota = fakeQuota();
+  const admit = quota.admit.bind(quota);
+  let admitting;
+  const entered = new Promise((resolve) => { admitting = resolve; });
+  quota.admit = async (...args) => {
+    admitting();
+    await new Promise((resolve) => { setTimeout(resolve, 200); });
+    return admit(...args);
+  };
+
+  const server = await startServer({ model, quota });
+  try {
+    const conversation = await newConversation(server);
+    const controller = new AbortController();
+    const request = ask(server, conversation.id, 'Hi', { signal: controller.signal }).catch(() => {});
+    await entered;
+    controller.abort();
+    await request;
+
+    await waitFor(() => quota.settled.length > 0 && server.registry.size === 0);
+    assert.equal(model.calls.length, 0, 'the model was never called');
+    assert.deepEqual(quota.settled.map((s) => s.refund), [true]);
+    assert.equal(server.store.conversations.get(conversation.id).turns.length, 0);
+    assert.equal(server.registry.size, 0);
+  } finally {
+    await server.close();
+  }
+});
+
+test('the history is read again once the lease is held, so an answer saved meanwhile is included', async () => {
+  const model = createScriptedModel([{ message: textMessage('Second.') }]);
+  const quota = fakeQuota();
+  const server = await startServer({ model, quota });
+  try {
+    const conversation = await newConversation(server);
+    // Another request's answer is saved between this request's first read and its admission
+    const admit = quota.admit.bind(quota);
+    quota.admit = async (...args) => {
+      await server.store.commitTurn({
+        conversationId: conversation.id,
+        expectedTurns: 0,
+        lastContextTokens: 10,
+        turn: {
+          turnId: 'earlier',
+          status: 'complete',
+          userText: 'One?',
+          display: { text: 'First.' },
+          apiJson: JSON.stringify([
+            { role: 'user', content: [{ type: 'text', text: 'One?' }] },
+            { role: 'assistant', content: [{ type: 'text', text: 'First.' }] }
+          ])
+        }
+      });
+      return admit(...args);
+    };
+
+    const events = parseEvents(await (await ask(server, conversation.id, 'Two?')).text());
+    assert.equal(events.at(-1).event, 'done');
+    assert.equal(model.calls[0].messages.length, 3, 'the earlier answer was in the history');
+    assert.equal(server.store.conversations.get(conversation.id).committedTurns, 2);
   } finally {
     await server.close();
   }

@@ -50,11 +50,12 @@ browser (fetch, reads the SSE stream)
    │ POST /api/assistant/conversations/:id/turns
    ▼
 API instance
-   1. validate input; load the conversation (only the owner's)
+   1. validate input; check the conversation is the owner's and has room
    2. take a slot on this instance          (full: 503 + Retry-After)
-   3. one atomic MongoDB update: daily quota + per-user lease   (429 / 409)
-   4. agent loop: Claude <-> read-only tools, at most 5 model calls, 60 s deadline
-   5. save the turn in one guarded update, record its cost, send `done`
+   3. take the user's lease, then count the turn against today's quota   (409 / 429)
+   4. read the history, now that no other turn of this user can save
+   5. agent loop: Claude <-> read-only tools, at most 5 model calls, 60 s deadline
+   6. save the turn in one guarded update, record its cost, send `done`
 events: status · tool_start / tool_end · text · done | error
 ```
 
@@ -63,20 +64,20 @@ events: status · tool_start / tool_end · text · done | error
 - **Grounded links.** The page renders a resort link only if a tool returned that id in the same turn, so a made-up id stays plain text. The eval caught the model miscopying one of two near-identical 24-character ids, so the server also repairs a link whose text exactly names a resort the tools returned (`assistant/links.js`); the model's own message is stored unchanged.
 - **Append-only history.** Each turn's messages are stored as exact JSON and replayed byte for byte, which keeps the prompt cache warm and the model's earlier reasoning valid. The system prompt and tools never change within a conversation; page context goes in the first message.
 - **Stateless between turns.** Conversations, quotas and leases live in MongoDB, so any instance can take a user's next question, and every log line names the instance that handled it. An answer in progress stays on the instance that started it. In Docker, nginx sends each request to the instance with the fewest open ones and notices instances as they start and stop (see the scaling test below). Not shared yet: the general rate limiter counts per instance.
-- **Cost control.** Per-user daily turns and spend, a global daily budget (the backstop, since accounts are free; it is checked before each turn, so turns already running can finish slightly over), prompt caching, low effort, output caps, and stopping the model when the browser disconnects.
+- **Cost control.** Per-user daily turns and spend, a global daily budget (the backstop, since accounts are free; it is checked before each turn, so turns already running can finish slightly over), prompt caching, low effort, an output budget per turn that caps each call, and stopping the model when the browser disconnects. A call cut short still counts what it used: the input as reported when it started, and the output estimated from what streamed.
 - **Refusal fallback.** A safety-classifier decline is re-run on Anthropic's recommended fallback model (`fallbacks: "default"`).
 
 ### Failure handling
 | Situation | What happens |
 | --- | --- |
 | Daily allowance or global budget used | 429 / 503 before any model call; the page shows when it resets |
-| A second question while one is answering | 409 from the per-user lease, on any instance |
+| A second question while one is answering | 409 from the per-user lease, on any instance and across midnight |
 | Instance at capacity or restarting | 503 with `Retry-After` and a Retry button; on shutdown, running answers get 5 s to finish, then stop and are recorded |
 | Claude rate limit, overload or outage | SDK retries twice, then a retryable error; the turn is refunded |
 | Stream breaks mid-answer, deadline or 20 s of silence | Partial text stays greyed out with Retry; nothing half-finished is saved |
 | A tool gets bad input or times out | The error goes back to the model, which corrects itself |
 | Database down | The turn stops rather than letting the model guess |
-| User presses Stop or closes the tab | The model call is cancelled, so billing stops |
+| User presses Stop or closes the tab | The model call is cancelled, so billing stops; if that happens before the model starts, the turn is given back |
 
 ### Measured
 From the eval on 2026-11-02 (14 cases, 15 questions, `claude-opus-5-5`):

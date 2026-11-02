@@ -1,6 +1,7 @@
 // models/AssistantUsage.js
-// One document per user per UTC day ("u:<userId>:<day>") plus one for everyone ("global:<day>").
-// Kept in MongoDB rather than in memory so limits hold across every API instance.
+// One document per user per UTC day ("u:<userId>:<day>"), one for everyone ("global:<day>") and
+// each user's lease ("lease:<userId>"). Kept in MongoDB rather than in memory so limits hold
+// across every API instance.
 const mongoose = require('mongoose');
 
 const AssistantUsageSchema = new mongoose.Schema({
@@ -10,7 +11,7 @@ const AssistantUsageSchema = new mongoose.Schema({
   inputTokens: { type: Number, default: 0 },
   outputTokens: { type: Number, default: 0 },
   cacheReadTokens: { type: Number, default: 0 },
-  // Lease for the user's one in-flight turn; it expires on its own if an instance dies mid-turn
+  // On the lease document: the user's one in-flight turn; it expires on its own if an instance dies mid-turn
   activeRequestId: String,
   activeUntil: Date,
   expiresAt: Date

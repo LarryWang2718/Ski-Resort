@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { admissionQuery, explainRejection, settlementOperations, userKey, globalKey, nextReset } = require('../assistant/quota');
+const { admissionQueries, explainRejection, settlementOperations, userKey, leaseKey, globalKey, nextReset } = require('../assistant/quota');
 const { commitQuery, replayHistory, MAX_STORED_TURNS } = require('../assistant/store');
 const { createTurnRegistry } = require('../assistant/concurrency');
 const { TurnError } = require('../assistant/errors');
@@ -8,23 +8,34 @@ const { TurnError } = require('../assistant/errors');
 const LIMITS = { dailyTurnsPerUser: 40, dailyCostPerUserUsd: 1, dailyGlobalCostUsd: 20, leaseMs: 90000 };
 const NOW = new Date('2026-11-01T23:59:30.000Z');
 
-test('usage is keyed per user per UTC day and resets at midnight UTC', () => {
+test('usage is keyed per user per UTC day and resets at midnight UTC; the lease is per user only', () => {
   assert.equal(userKey('abc', NOW), 'u:abc:2026-11-01');
   assert.equal(globalKey(NOW), 'global:2026-11-01');
   assert.equal(nextReset(NOW).toISOString(), '2026-11-02T00:00:00.000Z');
+  assert.equal(leaseKey('abc'), 'lease:abc');
 });
 
-test('admission checks both daily limits and the lease, and takes the lease, in one operation', () => {
-  const { filter, update } = admissionQuery({ userId: 'abc', requestId: 'r1', now: NOW, limits: LIMITS });
+test('admission takes the user\'s lease, then counts the turn under both daily limits', () => {
+  const { lease, count } = admissionQueries({ userId: 'abc', requestId: 'r1', now: NOW, limits: LIMITS });
 
-  assert.equal(filter._id, 'u:abc:2026-11-01');
-  assert.deepEqual(filter.turns, { $lt: 40 });
-  assert.deepEqual(filter.costMicroUsd, { $lt: 1000000 });
-  assert.deepEqual(filter.$or, [{ activeUntil: { $exists: false } }, { activeUntil: null }, { activeUntil: { $lte: NOW } }]);
-  assert.deepEqual(update.$inc, { turns: 1 });
-  assert.equal(update.$set.activeRequestId, 'r1');
-  assert.equal(update.$set.activeUntil.getTime(), NOW.getTime() + 90000);
-  assert.ok(update.$setOnInsert.expiresAt > nextReset(NOW));
+  assert.equal(lease.filter._id, 'lease:abc');
+  assert.deepEqual(lease.filter.$or, [{ activeUntil: { $exists: false } }, { activeUntil: null }, { activeUntil: { $lte: NOW } }]);
+  assert.equal(lease.update.$set.activeRequestId, 'r1');
+  assert.equal(lease.update.$set.activeUntil.getTime(), NOW.getTime() + 90000);
+  assert.ok(lease.update.$set.expiresAt > nextReset(NOW));
+
+  assert.equal(count.filter._id, 'u:abc:2026-11-01');
+  assert.deepEqual(count.filter.turns, { $lt: 40 });
+  assert.deepEqual(count.filter.costMicroUsd, { $lt: 1000000 });
+  assert.deepEqual(count.update.$inc, { turns: 1 });
+  assert.ok(count.update.$setOnInsert.expiresAt > nextReset(NOW));
+});
+
+test('an answer that runs past midnight still holds the lease for the next day\'s questions', () => {
+  const before = admissionQueries({ userId: 'abc', requestId: 'r1', now: NOW, limits: LIMITS });
+  const after = admissionQueries({ userId: 'abc', requestId: 'r2', now: new Date('2026-11-02T00:00:10.000Z'), limits: LIMITS });
+  assert.equal(after.lease.filter._id, before.lease.filter._id);
+  assert.notEqual(after.count.filter._id, before.count.filter._id);
 });
 
 test('a failed admission is explained from the current document', () => {
@@ -44,7 +55,7 @@ test('settlement records cost, refunds only when asked, and releases only its ow
   const usage = { costMicroUsd: 1234, inputTokens: 10, outputTokens: 5, cacheReadTokens: 2 };
   const kept = settlementOperations({ userId: 'abc', requestId: 'r1', now: NOW, usage, refund: false });
   assert.deepEqual(kept.user[0].updateOne.update.$inc, { costMicroUsd: 1234, inputTokens: 10, outputTokens: 5, cacheReadTokens: 2 });
-  assert.deepEqual(kept.user[1].updateOne.filter, { _id: 'u:abc:2026-11-01', activeRequestId: 'r1' });
+  assert.deepEqual(kept.user[1].updateOne.filter, { _id: 'lease:abc', activeRequestId: 'r1' });
   assert.equal(kept.global.update.$inc.turns, 1);
 
   const refunded = settlementOperations({ userId: 'abc', requestId: 'r1', now: NOW, usage, refund: true });

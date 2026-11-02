@@ -8,29 +8,48 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 const dayKey = (now) => now.toISOString().slice(0, 10);
 const userKey = (userId, now) => `u:${userId}:${dayKey(now)}`;
+const leaseKey = (userId) => `lease:${userId}`;
 const globalKey = (now) => `global:${dayKey(now)}`;
 const nextReset = (now) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
 const expiry = (now) => new Date(nextReset(now).getTime() + RETENTION_DAYS * DAY_MS);
 const micro = (usd) => Math.round(usd * 1e6);
 
-// One atomic operation: under today's limits, with no live lease, counts the turn and takes the lease.
-// The first turn of the day creates the document. If the document exists but a condition fails,
-// the upsert collides on _id (duplicate key), which is how a rejection shows up.
-const admissionQuery = ({ userId, requestId, now, limits }) => ({
-  filter: {
-    _id: userKey(userId, now),
-    turns: { $lt: limits.dailyTurnsPerUser },
-    costMicroUsd: { $lt: micro(limits.dailyCostPerUserUsd) },
-    $or: [{ activeUntil: { $exists: false } }, { activeUntil: null }, { activeUntil: { $lte: now } }]
+// Admission is two atomic steps. First the user's lease, in a document of its own rather than in
+// the daily one, so an answer that runs past midnight still holds it. Then the turn is counted
+// under today's limits; the first turn of the day creates that document. When a condition fails
+// on an existing document, the upsert collides on _id (duplicate key): that is the rejection.
+const admissionQueries = ({ userId, requestId, now, limits }) => ({
+  lease: {
+    filter: {
+      _id: leaseKey(userId),
+      $or: [{ activeUntil: { $exists: false } }, { activeUntil: null }, { activeUntil: { $lte: now } }]
+    },
+    update: {
+      $set: { activeRequestId: requestId, activeUntil: new Date(now.getTime() + limits.leaseMs), expiresAt: expiry(now) }
+    }
   },
-  update: {
-    $inc: { turns: 1 },
-    $set: { activeRequestId: requestId, activeUntil: new Date(now.getTime() + limits.leaseMs) },
-    $setOnInsert: { costMicroUsd: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, expiresAt: expiry(now) }
+  count: {
+    filter: {
+      _id: userKey(userId, now),
+      turns: { $lt: limits.dailyTurnsPerUser },
+      costMicroUsd: { $lt: micro(limits.dailyCostPerUserUsd) }
+    },
+    update: {
+      $inc: { turns: 1 },
+      $setOnInsert: { costMicroUsd: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, expiresAt: expiry(now) }
+    }
   }
 });
 
-// Why an admission failed, from the document as it is now
+// Only the request that took the lease can release it
+const leaseRelease = (userId, requestId) => ({
+  filter: { _id: leaseKey(userId), activeRequestId: requestId },
+  update: { $unset: { activeRequestId: 1, activeUntil: 1 } }
+});
+
+const busyError = () => new HttpError(409, 'Finish or stop the current answer first.', { code: 'busy' });
+
+// Why counting the turn failed, from the daily document as it is now
 const explainRejection = (doc, now, limits) => {
   const resetsAt = nextReset(now).toISOString();
   if (doc && (doc.turns >= limits.dailyTurnsPerUser || doc.costMicroUsd >= micro(limits.dailyCostPerUserUsd))) {
@@ -38,7 +57,7 @@ const explainRejection = (doc, now, limits) => {
       code: 'quota_exceeded', details: { resetsAt }
     });
   }
-  return new HttpError(409, 'Finish or stop the current answer first.', { code: 'busy' });
+  return busyError();
 };
 
 // After the turn: record what it cost, give the turn back if the failure wasn't the user's doing,
@@ -53,12 +72,7 @@ const settlementOperations = ({ userId, requestId, now, usage, refund }) => {
   return {
     user: [
       { updateOne: { filter: { _id: userKey(userId, now) }, update: { $inc: { ...spent, ...(refund && { turns: -1 }) } } } },
-      {
-        updateOne: {
-          filter: { _id: userKey(userId, now), activeRequestId: requestId },
-          update: { $unset: { activeRequestId: 1, activeUntil: 1 } }
-        }
-      }
+      { updateOne: leaseRelease(userId, requestId) }
     ],
     global: {
       filter: { _id: globalKey(now) },
@@ -79,12 +93,21 @@ const createQuota = ({ limits, Usage = AssistantUsage, clock = () => new Date() 
       });
     }
 
-    const { filter, update } = admissionQuery({ userId, requestId, now, limits });
+    const { lease, count } = admissionQueries({ userId, requestId, now, limits });
     try {
-      await Usage.collection.findOneAndUpdate(filter, update, { upsert: true });
+      await Usage.collection.findOneAndUpdate(lease.filter, lease.update, { upsert: true });
     } catch (error) {
+      throw error.code === 11000 ? busyError() : error;
+    }
+
+    try {
+      await Usage.collection.findOneAndUpdate(count.filter, count.update, { upsert: true });
+    } catch (error) {
+      // The turn wasn't counted, so it gives the lease straight back
+      const release = leaseRelease(userId, requestId);
+      await Usage.updateOne(release.filter, release.update).catch(() => {});
       if (error.code !== 11000) throw error;
-      throw explainRejection(await Usage.findById(filter._id).lean(), now, limits);
+      throw explainRejection(await Usage.findById(count.filter._id).lean(), now, limits);
     }
     return { day: dayKey(now), admittedAt: now };
   },
@@ -111,4 +134,4 @@ const createQuota = ({ limits, Usage = AssistantUsage, clock = () => new Date() 
   }
 });
 
-module.exports = { createQuota, admissionQuery, explainRejection, settlementOperations, userKey, globalKey, nextReset };
+module.exports = { createQuota, admissionQueries, explainRejection, settlementOperations, userKey, leaseKey, globalKey, nextReset };
