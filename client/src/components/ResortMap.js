@@ -36,13 +36,18 @@ const TRAIL_PAINT = {
   'line-width': ['match', ['get', 'difficulty'], ['expert', 'extreme'], 3, 2],
   'line-opacity': 0.8
 };
-// With a highlight, matching runs stand out and everything else steps back
+// With a highlight, matching runs get a little stronger and the rest fade, so it is still the same map
 const HIGHLIGHT_TRAIL_PAINT = {
   'line-color': TRAIL_COLOR,
-  'line-width': ['case', ['get', 'highlighted'], 5, 1.5],
-  'line-opacity': ['case', ['get', 'highlighted'], 1, 0.18]
+  'line-width': [
+    'case',
+    ['get', 'highlighted'], ['match', ['get', 'difficulty'], ['expert', 'extreme'], 4, 3.5],
+    ['match', ['get', 'difficulty'], ['expert', 'extreme'], 3, 2]
+  ],
+  'line-opacity': ['case', ['get', 'highlighted'], 1, 0.35]
 };
-const HIGHLIGHT_CASING_PAINT = { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': 0.85 };
+// A faint light edge keeps dark (advanced, expert) runs readable against the terrain
+const HIGHLIGHT_CASING_PAINT = { 'line-color': '#ffffff', 'line-width': 6, 'line-opacity': 0.5 };
 
 const toLngLat = (coordinates) => (coordinates || [])
   .filter((point) => Number.isFinite(point.longitude) && Number.isFinite(point.latitude))
@@ -187,7 +192,7 @@ function ResortMap({ resort, trails = [], lifts = [], showTrails = true, showLif
             paint={{
               'line-color': LIFT_COLOR,
               'line-width': 3,
-              'line-opacity': highlighting ? 0.3 : 0.9,
+              'line-opacity': highlighting ? 0.45 : 0.9,
               'line-dasharray': [2, 2] // All lifts use dashed lines
             }}
           />
