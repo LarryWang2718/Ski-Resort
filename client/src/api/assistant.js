@@ -1,8 +1,8 @@
 import api, { getErrorMessage, handleUnauthorized, loadStoredUser } from './client';
 import { readEventStream } from './sse';
 
-export const createConversation = async (resortId) => {
-  const response = await api.post('/assistant/conversations', resortId ? { resortId } : {});
+export const createConversation = async (resortId, { signal } = {}) => {
+  const response = await api.post('/assistant/conversations', resortId ? { resortId } : {}, { signal });
   return response.data.data;
 };
 

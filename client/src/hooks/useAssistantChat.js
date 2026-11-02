@@ -115,17 +115,16 @@ export default function useAssistantChat({ conversationId, resortId }) {
 
   // Load the conversation in the URL, unless it is the one this page just created
   useEffect(() => {
-    if (!conversationId) {
-      if (conversationRef.current) {
-        abortRef.current?.abort();
-        dispatch({ type: 'reset' });
-      }
-      return undefined;
+    // Moving to another conversation, or to a new one, stops and clears the one shown
+    if (conversationRef.current && conversationRef.current.id !== conversationId) {
+      abortRef.current?.abort();
+      conversationRef.current = null;
+      dispatch({ type: 'reset' });
     }
-    if (conversationRef.current?.id === conversationId) return undefined;
+    setLoadError(null);
+    if (!conversationId || conversationRef.current?.id === conversationId) return undefined;
 
     let cancelled = false;
-    setLoadError(null);
     getConversation(conversationId)
       .then((conversation) => {
         if (!cancelled) dispatch({ type: 'loaded', conversation });
@@ -147,8 +146,11 @@ export default function useAssistantChat({ conversationId, resortId }) {
     if (frame.current) cancelAnimationFrame(frame.current);
   }, []);
 
+  // The conversation in the URL is still loading: a question now would go to the wrong one
+  const loading = Boolean(conversationId) && state.conversation?.id !== conversationId && !loadError;
+
   const send = useCallback(async (text) => {
-    if (abortRef.current) return;
+    if (abortRef.current || (conversationId && conversationRef.current?.id !== conversationId)) return;
     const controller = new AbortController();
     abortRef.current = controller;
     setBusy(true);
@@ -158,7 +160,9 @@ export default function useAssistantChat({ conversationId, resortId }) {
     try {
       let conversation = conversationRef.current;
       if (!conversation) {
-        conversation = await createConversation(resortId);
+        conversation = await createConversation(resortId, { signal: controller.signal });
+        // Started over or left the page meanwhile: this conversation is no longer wanted
+        if (controller.signal.aborted) throw controller.signal.reason;
         conversationRef.current = conversation;
         dispatch({ type: 'conversation', conversation });
         // A reload now restores this conversation
@@ -180,18 +184,22 @@ export default function useAssistantChat({ conversationId, resortId }) {
       });
     } catch (error) {
       flush();
-      if (error.name === 'AbortError') {
+      // Checked on the signal: axios reports a cancelled request differently from fetch
+      if (controller.signal.aborted) {
         dispatch({ type: 'stopped', id });
       } else {
         dispatch({ type: 'failed', id, error: plainError(toTurnFailure(error)) });
       }
     } finally {
       flush();
-      abortRef.current = null;
-      setBusy(false);
+      // A question asked after starting over is not this one's to finish
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setBusy(false);
+      }
       refreshQuota();
     }
-  }, [flush, navigate, refreshQuota, resortId]);
+  }, [conversationId, flush, navigate, refreshQuota, resortId]);
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
 
@@ -209,5 +217,5 @@ export default function useAssistantChat({ conversationId, resortId }) {
     navigate('/assistant');
   }, [navigate]);
 
-  return { conversation: state.conversation, turns: state.turns, busy, quota, loadError, send, stop, retry, reset };
+  return { conversation: state.conversation, turns: state.turns, busy, quota, loading, loadError, send, stop, retry, reset };
 }

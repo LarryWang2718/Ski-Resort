@@ -31,7 +31,7 @@ function AssistantPage() {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const resortId = searchParams.get('resort') || undefined;
-  const { conversation, turns, busy, quota, loadError, send, stop, retry, reset } = useAssistantChat({ conversationId, resortId });
+  const { conversation, turns, busy, quota, loading, loadError, send, stop, retry, reset } = useAssistantChat({ conversationId, resortId });
   const [draft, setDraft] = useState('');
   const inputRef = useRef(null);
 
@@ -40,7 +40,11 @@ function AssistantPage() {
   const outOfQuestions = quota?.turnsLeft === 0;
   const lastTurn = turns[turns.length - 1];
   const full = conversation?.full || lastTurn?.error?.code === 'conversation_full';
-  const composerDisabled = outOfQuestions || full || Boolean(loadError);
+  const composerDisabled = outOfQuestions || full || loading || Boolean(loadError);
+  let disabledReason = 'No questions left today.';
+  if (loading) disabledReason = 'Loading the conversation…';
+  else if (loadError) disabledReason = 'Start a new conversation to ask a question.';
+  else if (full) disabledReason = 'This conversation is full. Start a new one.';
   const examples = context ? RESORT_EXAMPLES : GENERAL_EXAMPLES;
   // Once there is a conversation, the introduction shrinks to a title so the answers get the space
   const started = turns.length > 0 || Boolean(conversationId);
@@ -112,7 +116,7 @@ function AssistantPage() {
       inputRef={inputRef}
       busy={busy}
       disabled={composerDisabled}
-      disabledReason={full ? 'This conversation is full. Start a new one.' : 'No questions left today.'}
+      disabledReason={disabledReason}
       note={quotaText(quota)}
       docked={started}
       onSend={ask}
