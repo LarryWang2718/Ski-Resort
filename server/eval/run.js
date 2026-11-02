@@ -70,13 +70,15 @@ const runCase = async (testCase, { model, settings, store }) => {
         limits: config.limits,
         toolbox,
         log: (event, fields) => {
-          if (event === 'assistant.model_call') modelCalls.push({ index: fields.call, cacheRead: fields.usage?.cacheRead });
+          if (event === 'assistant.model_call') {
+            modelCalls.push({ index: fields.call, cacheRead: fields.usage?.cacheRead, ms: fields.ms, ttftMs: fields.ttftMs, stopReason: fields.stopReason, usage: fields.usage });
+          }
         }
       });
       history = [...history, ...result.messages];
       turns.push({
         status: result.status, text: result.display.text, mapLinks: result.display.mapLinks,
-        modelCalls: result.metrics.modelCalls, costMicroUsd: result.metrics.costMicroUsd,
+        modelCalls: result.metrics.modelCalls, costMicroUsd: result.metrics.costMicroUsd, repairedLinks: result.metrics.repairedLinks,
         durationMs: Date.now() - started, ttftMs: result.metrics.ttftMs
       });
     } catch (error) {
@@ -118,9 +120,10 @@ const main = async () => {
       results.push({
         id: testCase.id, attempt, pass: failed.length === 0, checks, costUsd, durationMs,
         modelCalls: run.turns.reduce((sum, turn) => sum + turn.modelCalls, 0),
-        tools: run.calls.map((call) => call.name), answers: run.turns.map((turn) => turn.text)
+        repairedLinks: run.turns.reduce((sum, turn) => sum + (turn.repairedLinks || 0), 0),
+        tools: run.calls.map((call) => call.name), answers: run.turns.map((turn) => turn.text), calls: run.modelCalls
       });
-      console.log(`${failed.length === 0 ? 'PASS' : 'FAIL'}  ${testCase.id.padEnd(24)} $${costUsd.toFixed(4)}  ${(durationMs / 1000).toFixed(1)}s  ${run.calls.map((c) => c.name).join(', ')}`);
+      console.log(`${failed.length === 0 ? 'PASS' : 'FAIL'}  ${testCase.id.padEnd(24)} $${costUsd.toFixed(4)}  ${(durationMs / 1000).toFixed(1)}s  ${run.calls.map((c) => c.name).join(', ')}${results.at(-1).repairedLinks ? `  (${results.at(-1).repairedLinks} link repaired)` : ''}`);
       for (const c of failed) console.log(`        x ${c.name}${c.detail !== undefined ? `: ${JSON.stringify(c.detail)}` : ''}`);
     }
   }
