@@ -91,6 +91,12 @@ a {
   cursor: default;
 }
 
+/* Keyboard focus only; mouse clicks don't show it */
+.btn:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
 .btn-ghost {
   background: transparent;
   border: 1px solid rgba(223, 239, 248, 0.36);

@@ -2,9 +2,85 @@ import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import AnswerText, { linkedResortIds } from './AnswerText';
 import { ErrorNotice } from '../Feedback';
-import { formatLocation } from '../../utils/format';
+import { formatLocation, formatStat } from '../../utils/format';
 
 const STEP_ICONS = { running: '…', ok: '✓', error: '!' };
+
+// The directory figures the tools return; any of them can be missing
+const STATS = [
+  { field: 'slope_km', label: 'Slopes', unit: 'km', inline: (text) => `${text} of slopes` },
+  { field: 'lifts', label: 'Lifts', unit: '', inline: (text, value) => `${text} ${Number(value) === 1 ? 'lift' : 'lifts'}` },
+  { field: 'top_elevation_m', label: 'Top elevation', unit: 'm', inline: (text) => `top ${text}` },
+  { field: 'vertical_m', label: 'Vertical drop', unit: 'm', inline: (text) => `${text} vertical` }
+];
+
+const placeOf = (resort) => formatLocation({ location_region: resort.region, location_country: resort.country });
+
+// "412 km of slopes · 68 lifts · top 3,330 m", leaving out what the directory doesn't have
+const statLine = (resort) => {
+  const parts = STATS.map(({ field, unit, inline }) => {
+    const text = formatStat(resort[field], unit);
+    return text && inline(text, resort[field]);
+  }).filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : 'No figures in the directory';
+};
+
+function ResortRows({ resorts }) {
+  return (
+    <ul className="list">
+      {resorts.map((resort) => (
+        <li key={resort.id} className="list-row chat-resort">
+          <div className="list-text">
+            <Link to={`/resorts/${resort.id}`} className="list-title chat-resort-name">{resort.name}</Link>
+            <span className="list-sub">{placeOf(resort)}</span>
+            <span className="chat-resort-stats">{statLine(resort)}</span>
+          </div>
+          <span className="chat-resort-links">
+            <Link to={`/resorts/${resort.id}`}>View resort</Link>
+            <Link to={`/resorts/${resort.id}#map`}>Trail map</Link>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// A comparison's resorts in columns; scrolls sideways when the screen is too narrow for them
+function CompareTable({ resorts }) {
+  return (
+    <div className="chat-compare">
+      <table className="compare-table">
+        <thead>
+          <tr>
+            <td />
+            {resorts.map((resort) => (
+              <th key={resort.id} scope="col">
+                <Link to={`/resorts/${resort.id}`}>{resort.name}</Link>
+                <span className="compare-place">{placeOf(resort)}</span>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {STATS.map(({ field, label, unit }) => (
+            <tr key={field}>
+              <th scope="row">{label}</th>
+              {resorts.map((resort) => (
+                <td key={resort.id}>{formatStat(resort[field], unit) || <span className="compare-missing">Not available</span>}</td>
+              ))}
+            </tr>
+          ))}
+          <tr>
+            <th scope="row">Map</th>
+            {resorts.map((resort) => (
+              <td key={resort.id}><Link to={`/resorts/${resort.id}#map`}>Trail map</Link></td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 const STATUS_NOTES = {
   truncated: 'The answer was cut short.',
@@ -21,6 +97,8 @@ function ChatTurn({ turn, onRetry }) {
     const byId = new Map(turn.resorts.map((resort) => [resort.id, resort]));
     return linkedResortIds(turn.text).map((id) => byId.get(id)).filter(Boolean);
   }, [turn.resorts, turn.text]);
+  const compared = linkedResorts.length >= 2 && linkedResorts.length <= 4
+    && turn.tools.some((tool) => tool.name === 'get_resort_details' && tool.state === 'ok');
 
   return (
     <li className="chat-turn">
@@ -64,20 +142,8 @@ function ChatTurn({ turn, onRetry }) {
 
           {finished && linkedResorts.length > 0 && (
             <div className="chat-resorts">
-              <div className="chat-resorts-title">Resorts in this answer</div>
-              <ul className="list">
-                {linkedResorts.map((resort) => (
-                  <li key={resort.id}>
-                    <Link to={`/resorts/${resort.id}`} className="list-row">
-                      <div className="list-text">
-                        <span className="list-title">{resort.name}</span>
-                        <span className="list-sub">{formatLocation({ location_region: resort.region, location_country: resort.country })}</span>
-                      </div>
-                      <span className="list-meta">{resort.slope_km ? `${resort.slope_km} km of slopes` : ''}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+              <div className="chat-resorts-title">{compared ? 'Side by side' : 'Resorts in this answer'}</div>
+              {compared ? <CompareTable resorts={linkedResorts} /> : <ResortRows resorts={linkedResorts} />}
             </div>
           )}
 

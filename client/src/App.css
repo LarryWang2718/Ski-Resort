@@ -641,27 +641,82 @@ a.list-row:focus-visible {
   margin: 0 auto;
 }
 
-.assistant-toolbar {
+/* Smaller than other page titles, so the question box sits near the top */
+.assistant-header {
+  margin-bottom: 1.4rem;
+}
+
+.assistant-heading {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: 0.75rem 1rem;
-  margin: -0.5rem 0 1.5rem;
+}
+
+.assistant-header h1 {
+  margin: 0.8rem 0 0.6rem;
+  font-size: clamp(2rem, 4.5vw, 2.8rem);
+  line-height: 1.05;
+}
+
+.assistant-lead {
+  font-size: 1.1rem;
+}
+
+.assistant-note {
+  max-width: 42rem;
+  margin-top: 0.3rem;
   color: var(--text-muted);
   font-size: 0.92rem;
 }
 
-.assistant-toolbar .btn {
-  margin-left: auto;
+/* After the first question only the title and New conversation stay */
+.assistant-header--compact {
+  margin-bottom: 1rem;
+}
+
+/* A conversation works like a chat app: the page is exactly the window below the navbar,
+   the answers scroll and the question box stays at the bottom */
+html:has(.assistant-shell--chat) {
+  overflow: hidden;
+}
+
+.container:has(.assistant-shell--chat) {
+  padding-bottom: 0;
+}
+
+.assistant-shell--chat {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - var(--navbar-height, 73px));
+  height: calc(100dvh - var(--navbar-height, 73px));
+  padding: 1.25rem 0 0;
+}
+
+/* As wide as the window, so its scrollbar sits at the window's edge rather than beside the text */
+.chat-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-inline: calc(50% - 50vw);
+  padding-inline: calc(50vw - 50%);
+}
+
+.assistant-header--compact h1 {
+  margin: 0;
+  font-size: 1.5rem;
 }
 
 .context-chip {
   display: inline-flex;
   gap: 0.35rem;
+  margin-top: 0.9rem;
   padding: 0.3rem 0.85rem;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
   color: var(--text);
+  font-size: 0.92rem;
 }
 
 .chat-log {
@@ -787,63 +842,232 @@ a.list-row:focus-visible {
   margin-bottom: 0.4rem;
 }
 
-.chat-resorts .list-row {
-  padding: 0.65rem 0.5rem;
+.chat-resort {
+  align-items: flex-start;
+  padding: 0.7rem 0.5rem;
 }
 
-.list-row--button {
+.chat-resort-name {
+  text-decoration: none;
+}
+
+.chat-resort-name:hover {
+  text-decoration: underline;
+}
+
+.chat-resort-stats {
+  margin-top: 0.15rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-resort-links {
+  display: flex;
+  flex-shrink: 0;
+  gap: 1rem;
+  padding-top: 0.1rem;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+.chat-resort-links a,
+.compare-table td a {
+  text-decoration: none;
+}
+
+.chat-resort-links a:hover,
+.compare-table a:hover {
+  text-decoration: underline;
+}
+
+.chat-compare {
+  overflow-x: auto;
+}
+
+.compare-table {
   width: 100%;
-  border: none;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.compare-table th,
+.compare-table td {
+  /* Two resorts fit on a phone; three or four scroll sideways */
+  min-width: 6.5rem;
+  padding: 0.6rem 0.75rem;
   border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.compare-table thead th,
+.compare-table thead td {
+  border-top: 1px solid var(--line);
+}
+
+/* Names like "Matterhorn (Zermatt/Cervinia)" may break mid-word rather than widen the column */
+.compare-table thead th {
+  overflow-wrap: anywhere;
+}
+
+.compare-table thead a {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.compare-table tbody th {
+  min-width: 0;
+  color: var(--text-muted);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.compare-place {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.compare-missing {
+  color: var(--text-faint);
+}
+
+/* Examples fill the question box instead of sending, so they can be edited first */
+.chat-examples {
+  margin-top: 1.75rem;
+}
+
+.chat-example-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.6rem;
+  list-style: none;
+}
+
+.chat-example {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  width: 100%;
+  height: 100%;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
   background: none;
+  color: var(--text);
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-.list-row--button:hover:not(:disabled),
-.list-row--button:focus-visible {
+.chat-example:hover:not(:disabled) {
+  border-color: var(--line-strong);
   background: var(--surface-hover);
-  outline: none;
 }
 
-.list-row--button:disabled {
+.chat-example:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+.chat-example:disabled {
   cursor: default;
   opacity: 0.55;
 }
 
-.chat-composer {
-  position: sticky;
-  bottom: 0;
-  margin-top: 1.5rem;
-  padding: 1rem 0 1.25rem;
-  /* Solid by the time the (translucent) text field starts, so rows scrolling underneath don't show through */
-  background: linear-gradient(to bottom, rgba(9, 20, 34, 0), rgb(9, 20, 34) 1rem);
+.chat-example-label {
+  color: var(--accent-text);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.chat-example-question {
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+/* Below the scrolling answers, not over them, so it needs no background of its own */
+.chat-composer--docked {
+  flex-shrink: 0;
+  padding: 0.75rem 0 1rem;
+}
+
+/* The question box and its button read as one control; lighter than other fields so it stands out */
+.chat-box {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  padding: 0.5rem 0.5rem 0.5rem 1rem;
+  border: 1px solid rgba(236, 246, 252, 0.5);
+  border-radius: 18px;
+  background: rgba(224, 241, 251, 0.1);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.chat-box:hover {
+  border-color: rgba(236, 246, 252, 0.65);
+}
+
+.chat-box:focus-within {
+  border-color: var(--accent-text);
+  box-shadow: 0 0 0 3px rgba(143, 211, 236, 0.2);
+}
+
+.chat-box--disabled {
+  opacity: 0.6;
 }
 
 .chat-input {
-  width: 100%;
-  height: auto;
-  min-height: 64px;
-  padding: 0.75rem 1rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0.45rem 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
   line-height: 1.45;
-  resize: vertical;
+  resize: none;
+  outline: none;
 }
 
-.chat-input:disabled {
-  opacity: 0.6;
+.chat-input::placeholder {
+  color: rgba(236, 246, 252, 0.7);
+}
+
+/* Bright once there is something to send; quiet, not broken-looking, while the box is empty */
+.chat-send:not(:disabled):not(.btn-secondary) {
+  background: linear-gradient(135deg, #1aa6d4, #0f7b9f);
+  box-shadow: 0 6px 16px rgba(20, 144, 186, 0.35);
+}
+
+.chat-send:not(:disabled):not(.btn-secondary):hover {
+  background: linear-gradient(135deg, #2bb5e2, #1490ba);
+}
+
+.chat-send:disabled {
+  background: rgba(228, 239, 245, 0.1);
+  color: var(--text-faint);
+  box-shadow: none;
+  opacity: 1;
 }
 
 .chat-composer-bar {
   display: flex;
-  align-items: center;
+  justify-content: space-between;
   gap: 1rem;
-  margin-top: 0.6rem;
-}
-
-.chat-count {
-  margin-right: auto;
-  color: var(--text-faint);
+  min-height: 1.3rem;
+  margin-top: 0.45rem;
+  padding: 0 0.6rem;
+  color: var(--text-muted);
   font-size: 0.85rem;
 }
 
@@ -858,7 +1082,16 @@ a.list-row:focus-visible {
     gap: 0.25rem;
   }
 
-  .assistant-toolbar .btn {
-    margin-left: 0;
+  .chat-example-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .compare-table th,
+  .compare-table td {
+    padding: 0.55rem 0.5rem;
+  }
+
+  .chat-resort-links {
+    padding-top: 0.2rem;
   }
 }

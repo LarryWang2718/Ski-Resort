@@ -1,16 +1,24 @@
-import React, { useState } from 'react';
+import React, { useLayoutEffect } from 'react';
 
 const MAX_LENGTH = 2000;
+// The box grows with the question up to about eight lines, then scrolls
+const MAX_INPUT_HEIGHT = 192;
 
-function Composer({ busy, disabled, disabledReason, onSend, onStop }) {
-  const [text, setText] = useState('');
-  const trimmed = text.trim();
+// The question box and its button as one control. The page owns the text, so an example can fill it.
+function Composer({ value, onChange, inputRef, busy, disabled, disabledReason, note, docked, onSend, onStop }) {
+  const trimmed = value.trim();
+
+  useLayoutEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(input.scrollHeight, MAX_INPUT_HEIGHT)}px`;
+  }, [value, inputRef]);
 
   const submit = (event) => {
     event?.preventDefault();
     if (!trimmed || busy || disabled) return;
     onSend(trimmed);
-    setText('');
   };
 
   // Enter sends, Shift+Enter starts a new line (and Enter while composing CJK text does neither)
@@ -19,27 +27,29 @@ function Composer({ busy, disabled, disabledReason, onSend, onStop }) {
   };
 
   return (
-    <form className="chat-composer" onSubmit={submit}>
-      <textarea
-        className="field chat-input"
-        rows={2}
-        maxLength={MAX_LENGTH}
-        value={text}
-        disabled={disabled}
-        placeholder={disabled ? disabledReason : 'Ask about resorts, runs or lifts…'}
-        aria-label="Your question"
-        onChange={(event) => setText(event.target.value)}
-        onKeyDown={handleKeyDown}
-      />
-      <div className="chat-composer-bar">
-        <span className="chat-count">
-          {text.length > MAX_LENGTH * 0.8 && `${text.length.toLocaleString()} / ${MAX_LENGTH.toLocaleString()}`}
-        </span>
+    <form className={`chat-composer${docked ? ' chat-composer--docked' : ''}`} onSubmit={submit}>
+      <div className={`chat-box${disabled ? ' chat-box--disabled' : ''}`}>
+        <textarea
+          ref={inputRef}
+          className="chat-input"
+          rows={2}
+          maxLength={MAX_LENGTH}
+          value={value}
+          disabled={disabled}
+          placeholder={disabled ? disabledReason : 'Ask about resorts, runs or lifts…'}
+          aria-label="Your question"
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={handleKeyDown}
+        />
         {busy ? (
-          <button type="button" className="btn btn-secondary" onClick={onStop}>Stop</button>
+          <button type="button" className="btn btn-secondary btn-small chat-send" onClick={onStop}>Stop</button>
         ) : (
-          <button type="submit" className="btn" disabled={disabled || !trimmed}>Ask</button>
+          <button type="submit" className="btn btn-small chat-send" disabled={disabled || !trimmed}>Ask</button>
         )}
+      </div>
+      <div className="chat-composer-bar">
+        <span>{note}</span>
+        <span>{value.length > MAX_LENGTH * 0.8 && `${value.length.toLocaleString()} / ${MAX_LENGTH.toLocaleString()}`}</span>
       </div>
     </form>
   );

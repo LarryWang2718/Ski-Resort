@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import useApi from '../hooks/useApi';
 import ResortMap from './ResortMap';
 import DifficultyBadge from './DifficultyBadge';
@@ -131,17 +131,19 @@ function ResortDetail() {
     [highlight, allTrails]
   );
   const mapSectionRef = useRef(null);
+  const { hash } = useLocation();
+  const loaded = Boolean(data);
 
-  // Arriving from a "Show on map" link: go straight to the map
+  // Arriving from a "Show on map" or "Trail map" link (#map): go straight to the map
   useEffect(() => {
     const section = mapSectionRef.current;
-    if (highlightedIds && section) {
+    if ((highlightedIds || hash === '#map') && section) {
       // Stop just below the sticky navbar, whatever its height on this screen. Instant, because the
       // page-wide smooth scrolling would animate past the whole header.
       const navbarHeight = document.querySelector('.navbar')?.getBoundingClientRect().height || 0;
       window.scrollTo({ top: section.getBoundingClientRect().top + window.scrollY - navbarHeight - 12, behavior: 'instant' });
     }
-  }, [highlightedIds]);
+  }, [highlightedIds, hash, loaded]);
 
   if (error) {
     return (
