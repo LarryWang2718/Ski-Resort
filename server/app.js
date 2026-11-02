@@ -51,14 +51,25 @@ const authLimiter = rateLimit({
 
 // Middleware
 app.use(helmet());
-app.use(cors({
-  origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(new HttpError(403, 'Origin not allowed'));
+// A request whose Origin is the API's own address is same-origin, which CORS doesn't restrict.
+// The Create React App dev proxy sends exactly that: it rewrites Origin to its target, which on
+// Windows comes with a trailing slash ("http://localhost:5000/"), so compare the parsed parts.
+const isOwnOrigin = (origin, req) => {
+  try {
+    const url = new URL(origin);
+    return url.host === req.get('host') && url.protocol === `${req.protocol}:`;
+  } catch {
+    return false;
   }
+};
+
+app.use(cors((req, callback) => {
+  const origin = req.get('origin');
+  if (!origin || isOwnOrigin(origin, req) || allowedOrigins.includes(origin)) {
+    return callback(null, { origin: true });
+  }
+
+  return callback(new HttpError(403, 'Origin not allowed'));
 }));
 if (process.env.NODE_ENV !== 'test') {
   app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));

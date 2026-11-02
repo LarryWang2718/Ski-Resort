@@ -46,6 +46,20 @@ test('requests from other origins are refused with 403', async () => {
   assert.equal(status, 403);
 });
 
+test('requests from the API\'s own origin are allowed, as the dev proxy sends them', async () => {
+  const { status } = await postJson('/api/auth/login', { email: 'x' });
+  // On Windows the proxy's Origin ends in a slash
+  for (const origin of [baseUrl, `${baseUrl}/`]) {
+    const proxied = await request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: origin },
+      body: JSON.stringify({ email: 'x' })
+    });
+    assert.equal(proxied.status, status, origin);
+  }
+  assert.notEqual(status, 403);
+});
+
 test('registration explains which rule failed', async () => {
   const { status, body } = await postJson('/api/auth/register', {
     firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.com', password: 'short'
