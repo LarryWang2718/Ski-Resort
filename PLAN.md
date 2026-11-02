@@ -14,6 +14,7 @@
 - Docker Compose setup (API plus nginx-served client)
 - AI assistant: streamed answers from read-only database tools, daily quotas and a global budget, a per-user lease, shutdown draining, refusal fallback, map highlighting, a mock model for development and a graded eval
 - Eval run against Claude: 14/14 at low effort for $0.17; medium cost 31% more with no accuracy gain, so low is the default
+- Load test of three API instances behind nginx (mock model). It found and fixed uneven balancing, answers cut off on shutdown and requests sent to stopped instances; new instances now get traffic without restarting nginx
 - Numeric resort stats, GeoJSON locations (2dsphere) and accent-insensitive names, kept in sync by both the migration and the import
 
 ### Removed
@@ -28,6 +29,8 @@
 - An LLM grader for the refusal-style eval cases; the keyword checks have twice missed a correctly worded answer
 - Resumable answers: a dropped connection currently ends the turn; an event log (for example Redis Streams with `Last-Event-ID`) would let the browser reconnect to the same answer
 - Move the general rate limiter to a shared store; it counts per instance today
+- Find the cause of the rare 502 when nginx refreshes its list of instances while a request is being retried (once in each of two stop tests; the page offers Retry)
+- Repeat the load test with Claude: there the limits are Anthropic's rate limits, the daily budget and the Atlas tier, not the number of instances
 - Admin view of assistant usage: latency percentiles, cost, error codes and cache-hit ratio (the data is already stored per turn)
 - Search the resort list by the numeric stats, as the assistant already can
 

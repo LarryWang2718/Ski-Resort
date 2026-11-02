@@ -62,8 +62,8 @@ events: status · tool_start / tool_end · text · done | error
 - **Six fixed tools** over Resort, Trail and Lift: search and filter resorts, details and comparisons, named runs, lifts, resorts nearby (`$geoNear` on a 2dsphere index) and countries/regions. Strict JSON schemas, server-side range clamping, a 3 s query limit and results capped at 6 KB. Tools never read users and never return free-text OSM descriptions.
 - **Grounded links.** The page renders a resort link only if a tool returned that id in the same turn, so a made-up id stays plain text. The eval caught the model miscopying one of two near-identical 24-character ids, so the server also repairs a link whose text exactly names a resort the tools returned (`assistant/links.js`); the model's own message is stored unchanged.
 - **Append-only history.** Each turn's messages are stored as exact JSON and replayed byte for byte, which keeps the prompt cache warm and the model's earlier reasoning valid. The system prompt and tools never change within a conversation; page context goes in the first message.
-- **Stateless instances.** Conversations, quotas and leases live in MongoDB, so any instance can serve any turn: `docker compose up --scale api=3` runs three API containers behind nginx, and every log line names the instance that handled it.
-- **Cost control.** Per-user daily turns and spend, a global daily budget (the real ceiling, since accounts are free), prompt caching, low effort, output caps, and stopping the model when the browser disconnects.
+- **Stateless between turns.** Conversations, quotas and leases live in MongoDB, so any instance can take a user's next question, and every log line names the instance that handled it. An answer in progress stays on the instance that started it. In Docker, nginx sends each request to the instance with the fewest open ones and notices instances as they start and stop (see the scaling test below). Not shared yet: the general rate limiter counts per instance.
+- **Cost control.** Per-user daily turns and spend, a global daily budget (the backstop, since accounts are free; it is checked before each turn, so turns already running can finish slightly over), prompt caching, low effort, output caps, and stopping the model when the browser disconnects.
 - **Refusal fallback.** A safety-classifier decline is re-run on Anthropic's recommended fallback model (`fallbacks: "default"`).
 
 ### Failure handling
@@ -71,7 +71,7 @@ events: status · tool_start / tool_end · text · done | error
 | --- | --- |
 | Daily allowance or global budget used | 429 / 503 before any model call; the page shows when it resets |
 | A second question while one is answering | 409 from the per-user lease, on any instance |
-| Instance at capacity or restarting | 503 with `Retry-After`; on shutdown, running answers stop and are recorded |
+| Instance at capacity or restarting | 503 with `Retry-After` and a Retry button; on shutdown, running answers get 5 s to finish, then stop and are recorded |
 | Claude rate limit, overload or outage | SDK retries twice, then a retryable error; the turn is refunded |
 | Stream breaks mid-answer, deadline or 20 s of silence | Partial text stays greyed out with Retry; nothing half-finished is saved |
 | A tool gets bad input or times out | The error goes back to the model, which corrects itself |
@@ -89,6 +89,24 @@ From the eval on 2026-11-02 (14 cases, 15 questions, `claude-opus-5-5`):
 - Medium was 31% more expensive and slower with no gain in accuracy, so the assistant runs at low effort.
 - A typical question takes two model calls (one to choose a tool, one to answer) of about 2.5 s each. 98% of input tokens were read from the prompt cache.
 - Both runs miscopied one resort id (the same one), and both were repaired. The medium run's one failure was the grader missing a correct "not in the directory" answer; the check was widened.
+
+### Scaling test
+A load test on 2026-11-02 ran three API instances behind nginx on one machine (`docker compose up --scale api=3`) with up to 24 users asking at once. It used the rule-based stand-in instead of Claude, so the numbers measure the servers and the database, not the model.
+
+| Test | Result |
+| --- | --- |
+| 24 questions at the same moment | All 24 answered, 8 per instance (each instance runs at most 8 at once) |
+| 24 users asking 5 questions each | 120 of 120 answered on the first try, 8.3 answers a second (paced by users waiting for each answer, not by the servers) |
+| Time spent outside the model | Median 0.3 s and 95th percentile 1.3 s with 24 users active, mostly database round trips to Atlas |
+| One instance stopped under load | Its running answers finished and it exited cleanly. The others took over; with 16 slots left for 24 users, extra questions got "busy" with a Retry button |
+| A fourth instance started | It took 16 of the next 72 questions, with no nginx restart |
+
+The first run found three problems in the Docker setup, now fixed:
+- **Uneven balancing.** Each of nginx's 24 worker processes rotated through the instances on its own, so questions bunched up: with 12 users and 24 free slots, 4 were turned away as busy. The workers now share one balancer that picks the instance with the fewest open requests (`least_conn`).
+- **Answers cut off on shutdown.** Docker Desktop allowed a stopping container 1 s before killing it, which cut off 3 answers mid-stream. `stop_grace_period: 15s` gives the server time to drain.
+- **Requests sent to a stopped instance.** nginx looked the instances up only when it started, so after one stopped, 9 questions waited 60 s on its old address. nginx now looks them up every 5 s and gives up on a connection after 2 s.
+
+Still open: in each of two stop tests, one question that was being retried as nginx refreshed its list of instances got a 502 error page. The page now offers Retry for errors like this from the proxy.
 
 ### Running it
 - No key needed for development: set `ASSISTANT_PROVIDER=mock` in `server/.env` for a rule-based stand-in that calls the real tools. Add `MOCK_FAILURE=rate_limit` (or `overloaded`, `slow`, `refusal`, `tool_error`) to see each error path.
@@ -111,6 +129,8 @@ With Docker, build and run both services behind nginx on http://localhost:8080:
 ```bash
 REACT_APP_MAPBOX_TOKEN=pk.your-token docker compose up --build
 ```
+
+Add `--scale api=3` to run three API instances behind nginx; `docker compose logs api` shows which instance answered each question.
 
 ## Data Pipeline
 The database is built offline from OpenStreetMap:
