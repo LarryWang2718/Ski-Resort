@@ -171,6 +171,34 @@ test('an outside abort (the user left) stops the model call with its reason', as
   assert.ok(error.display.text.length > 0, 'the partial answer is reported with the error');
 });
 
+test('a call cut short still counts the tokens it used', async () => {
+  const controller = new AbortController();
+  const stopped = createScriptedModel([{
+    chunks: ['a', 'b', 'c'], delayMs: 50, message: textMessage('abc'), partialUsage: { input_tokens: 1000, output_tokens: 50 }
+  }]);
+  const { promise } = turn(stopped, { signal: controller.signal });
+  setTimeout(() => controller.abort(new TurnError('stopped')), 75);
+  const error = await rejectsWith(promise, 'stopped');
+  // 1000 input tokens at $4/M + 50 output at $20/M
+  assert.equal(error.metrics.costMicroUsd, 5000);
+  assert.equal(error.metrics.inputTokens, 1000);
+
+  const failed = createScriptedModel([{ error: apiError(529, 'overloaded_error', 'overloaded'), partialUsage: { input_tokens: 500 } }]);
+  assert.equal((await rejectsWith(turn(failed).promise, 'overloaded')).metrics.costMicroUsd, 2000);
+});
+
+test('each call gets only what is left of the turn\'s output budget', async () => {
+  const model = createScriptedModel([
+    { message: toolUseMessage([{ id: 'a', name: 'search_resorts', input: {} }], { usage: { output_tokens: 8000 } }) },
+    { message: toolUseMessage([{ id: 'b', name: 'search_resorts', input: {} }], { usage: { output_tokens: 7500 } }) },
+    { message: textMessage('Never asked for.') }
+  ]);
+  const error = await rejectsWith(turn(model).promise, 'too_complex');
+  assert.equal(error.detail, 'output budget');
+  // 16,000 for the turn: 8,192 (the per-call cap), then the 8,000 left, then too little for a third call
+  assert.deepEqual(model.calls.map((request) => request.max_tokens), [8192, 8000]);
+});
+
 test('SDK errors map to user-facing failures', async () => {
   const cases = [
     [new Anthropic.RateLimitError(429, { type: 'error' }, 'slow down', new Headers()), 'rate_limited'],

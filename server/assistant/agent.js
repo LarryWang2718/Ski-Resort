@@ -10,12 +10,15 @@ const { logEvent } = require('./log');
 
 const BETAS = ['server-side-fallback-2026-07-01', 'thinking-binding-controls-2026-08-01'];
 const LAST_CALL_NOTE = 'Tool budget used up: answer now with what you have.';
+// With less of the turn's output budget left than this, another call couldn't finish anything
+const MIN_CALL_TOKENS = 1024;
 
-// Identical on every call of a conversation except for `messages`, which only ever grows.
+// Identical on every call of a conversation except for `messages`, which only ever grows, and
+// `max_tokens`, which shrinks to what's left of the turn's budget (neither is in the cached prefix).
 // That keeps the prompt cache warm and earlier thinking blocks valid.
-const buildRequest = ({ settings, limits, definitions, messages }) => ({
+const buildRequest = ({ settings, maxTokens, definitions, messages }) => ({
   model: settings.model,
-  max_tokens: limits.maxTokensPerCall,
+  max_tokens: maxTokens,
   system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
   tools: definitions,
   messages,
@@ -118,6 +121,9 @@ const runTurn = async ({
 
   try {
     for (let call = 1; call <= limits.maxModelCalls; call += 1) {
+      // Each call may only use what the earlier calls of this turn left of its output budget
+      const outputLeft = limits.maxOutputTokensPerTurn - usage.outputTokens;
+      if (outputLeft < MIN_CALL_TOKENS) throw new TurnError('too_complex', 'output budget');
       emit('status', { phase: 'thinking' });
       touch();
       const callStarted = Date.now();
@@ -133,19 +139,31 @@ const runTurn = async ({
         emit('text', { delta: text });
       };
 
-      const message = await model.streamTurn(
-        buildRequest({ settings, limits, definitions: toolbox.toolDefinitions, messages: [...history, ...turnMessages] }),
-        {
-          signal: controller.signal,
-          onActivity: touch,
-          onText: (delta) => {
-            touch();
-            callFirstText ??= Date.now();
-            metrics.ttftMs ??= Date.now() - startedAt;
-            showText(delta);
+      let message;
+      try {
+        message = await model.streamTurn(
+          buildRequest({
+            settings,
+            maxTokens: Math.min(limits.maxTokensPerCall, outputLeft),
+            definitions: toolbox.toolDefinitions,
+            messages: [...history, ...turnMessages]
+          }),
+          {
+            signal: controller.signal,
+            onActivity: touch,
+            onText: (delta) => {
+              touch();
+              callFirstText ??= Date.now();
+              metrics.ttftMs ??= Date.now() - startedAt;
+              showText(delta);
+            }
           }
-        }
-      );
+        );
+      } catch (error) {
+        // A call cut short is still billed for what it used, so it counts against the budgets
+        if (error?.partialMessage) addUsage(usage, error.partialMessage, settings.model);
+        throw error;
+      }
       clearTimeout(idleTimer);
 
       metrics.modelCalls = call;
@@ -205,8 +223,6 @@ const runTurn = async ({
         default:
           throw new TurnError('internal', `unexpected stop reason ${message.stop_reason}`);
       }
-
-      if (usage.outputTokens > limits.maxOutputTokensPerTurn) throw new TurnError('too_complex', 'output budget');
     }
     throw new TurnError('too_complex', 'model call limit');
   } catch (error) {

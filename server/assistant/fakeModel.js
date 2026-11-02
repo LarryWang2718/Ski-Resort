@@ -30,8 +30,9 @@ const apiError = (status, type, message) => Anthropic.APIError.generate(
   status, { type: 'error', error: { type, message } }, message, new Headers()
 );
 
-// Each step is { chunks?, message?, error?, delayMs? } or a function of the request returning one.
-// `calls` keeps a copy of every request, for asserting on what the agent sent.
+// Each step is { chunks?, message?, error?, delayMs?, partialUsage? } or a function of the request
+// returning one. `partialUsage` is attached to the error if the call fails or is aborted, as the
+// real model does. `calls` keeps a copy of every request, for asserting on what the agent sent.
 const createScriptedModel = (steps) => {
   const calls = [];
   let index = 0;
@@ -44,15 +45,20 @@ const createScriptedModel = (steps) => {
       const step = steps[index];
       index += 1;
       if (!step) throw new Error(`Scripted model has no step ${index}`);
-      const { chunks = [], message, error, delayMs = 0 } = typeof step === 'function' ? await step(params) : step;
+      const { chunks = [], message, error, delayMs = 0, partialUsage } = typeof step === 'function' ? await step(params) : step;
 
-      for (const chunk of chunks) {
-        if (delayMs) await sleep(delayMs, undefined, { signal });
-        onActivity?.();
-        onText?.(chunk);
+      try {
+        for (const chunk of chunks) {
+          if (delayMs) await sleep(delayMs, undefined, { signal });
+          onActivity?.();
+          onText?.(chunk);
+        }
+        if (delayMs && chunks.length === 0) await sleep(delayMs, undefined, { signal });
+        if (error) throw error;
+      } catch (failure) {
+        if (partialUsage) failure.partialMessage = { model: params.model, usage: partialUsage };
+        throw failure;
       }
-      if (delayMs && chunks.length === 0) await sleep(delayMs, undefined, { signal });
-      if (error) throw error;
       return message;
     }
   };
