@@ -1,6 +1,6 @@
 // Runs the assistant against eval/cases.js and grades the answers.
 //   npm run eval -- [--mock] [--case id] [--effort low|medium] [--repeat n] [--model id]
-// Without --mock this calls the Anthropic API and costs money (roughly $1-2 for all cases at low effort).
+// Without --mock this calls the Anthropic API and costs money (about $0.20 for all cases at low effort).
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true });
 

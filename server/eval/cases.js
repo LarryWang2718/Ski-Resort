@@ -5,7 +5,8 @@ const { linkedIds, mentionsNumber, precisionRecall, check } = require('./checks'
 const ids = (docs) => docs.map((doc) => String(doc._id));
 const lastText = (run) => run.turns[run.turns.length - 1].text;
 const toolsUsed = (run, name) => run.calls.filter((call) => call.name === name);
-const SAYS_NOT_AVAILABLE = /(n['’]t|not|no|unable|cannot)\b.{0,60}\b(have|has|find|found|available|include|cover|know|tell|provide|access|information|data)/i;
+// Matches the ways the model has said "that isn't in the data"; widened when a correct answer was missed
+const SAYS_NOT_AVAILABLE = /(n['’]t|not|no|nothing|unable|cannot)\b.{0,60}\b(have|has|find|found|available|include|cover|know|tell|provide|access|information|data|came up|match)/i;
 
 module.exports = [
   {

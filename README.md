@@ -60,7 +60,7 @@ events: status · tool_start / tool_end · text · done | error
 
 ### Design
 - **Six fixed tools** over Resort, Trail and Lift: search and filter resorts, details and comparisons, named runs, lifts, resorts nearby (`$geoNear` on a 2dsphere index) and countries/regions. Strict JSON schemas, server-side range clamping, a 3 s query limit and results capped at 6 KB. Tools never read users and never return free-text OSM descriptions.
-- **Grounded links.** The page renders a resort link only if a tool returned that id in the same turn, so a made-up id stays plain text.
+- **Grounded links.** The page renders a resort link only if a tool returned that id in the same turn, so a made-up id stays plain text. The eval caught the model miscopying one of two near-identical 24-character ids, so the server also repairs a link whose text exactly names a resort the tools returned (`assistant/links.js`); the model's own message is stored unchanged.
 - **Append-only history.** Each turn's messages are stored as exact JSON and replayed byte for byte, which keeps the prompt cache warm and the model's earlier reasoning valid. The system prompt and tools never change within a conversation; page context goes in the first message.
 - **Stateless instances.** Conversations, quotas and leases live in MongoDB, so any instance can serve any turn: `docker compose up --scale api=3` runs three API containers behind nginx, and every log line names the instance that handled it.
 - **Cost control.** Per-user daily turns and spend, a global daily budget (the real ceiling, since accounts are free), prompt caching, low effort, output caps, and stopping the model when the browser disconnects.
@@ -78,10 +78,22 @@ events: status · tool_start / tool_end · text · done | error
 | Database down | The turn stops rather than letting the model guess |
 | User presses Stop or closes the tab | The model call is cancelled, so billing stops |
 
+### Measured
+From the eval on 2026-11-02 (14 cases, 15 questions, `claude-opus-5-5`):
+
+| Effort | Passed | Cost of the run | Per case (median) | Time per case p50 / p95 |
+| --- | --- | --- | --- | --- |
+| low (used) | 14/14 | $0.17 | $0.010 | 5.8 s / 12.8 s |
+| medium | 13/14 (14/14 regraded) | $0.22 | $0.012 | 6.3 s / 13.9 s |
+
+- Medium was 31% more expensive and slower with no gain in accuracy, so the assistant runs at low effort.
+- A typical question takes two model calls (one to choose a tool, one to answer) of about 2.5 s each. 98% of input tokens were read from the prompt cache.
+- Both runs miscopied one resort id (the same one), and both were repaired. The medium run's one failure was the grader missing a correct "not in the directory" answer; the check was widened.
+
 ### Running it
 - No key needed for development: set `ASSISTANT_PROVIDER=mock` in `server/.env` for a rule-based stand-in that calls the real tools. Add `MOCK_FAILURE=rate_limit` (or `overloaded`, `slow`, `refusal`, `tool_error`) to see each error path.
 - With a key: set `ANTHROPIC_API_KEY` in `server/.env`. Limits and the model are configured there too (see `server/.env.example`).
-- Eval: `npm run eval -- --mock` checks the harness for free; `npm run eval -- --effort low` runs 14 graded cases against Claude (about $1-2). Expected answers are computed from the database at run time, and every answer is checked for ungrounded links and prompt-cache hits.
+- Eval: `npm run eval -- --mock` checks the harness for free; `npm run eval -- --effort low` runs 14 graded cases against Claude (about $0.20). Expected answers are computed from the database at run time, and every answer is checked for ungrounded links and prompt-cache hits.
 
 ## Getting Started
 Requirements: Node.js 20 or newer, a MongoDB database (MongoDB Atlas works), and a Mapbox access token.
