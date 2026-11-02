@@ -4,13 +4,15 @@ import { Link } from 'react-router-dom';
 // The small part of Markdown the assistant is asked to use: paragraphs, "- " and "1. " lists,
 // **bold** and resort links. Everything becomes React elements, never raw HTML.
 const INLINE = /\*\*(.+?)\*\*|\[([^\]]+)\]\((\/resorts\/([0-9a-f]{24})(?:\?[^)\s]*)?)\)/g;
+const RESORT_LINK = /\[[^\]]+\]\(\/resorts\/([0-9a-f]{24})(?:\?[^)\s]*)?\)/g;
 const BULLET = /^\s*[-*•]\s+/;
 const NUMBERED = /^\s*\d+[.)]\s+/;
 
-// Resort ids linked in an answer, in the order they appear
-export const linkedResortIds = (text) => [...new Set([...text.matchAll(INLINE)].map((match) => match[4]).filter(Boolean))];
+// Resort ids linked in an answer, in the order they appear, including links inside **bold**
+export const linkedResortIds = (text) => [...new Set([...text.matchAll(RESORT_LINK)].map((match) => match[1]))];
 
 // Links are only rendered for resorts a tool actually returned, so a made-up id stays plain text
+// (its label only: an id is never shown)
 function renderInline(text, allowedIds, keyPrefix) {
   const parts = [];
   let last = 0;
@@ -18,7 +20,8 @@ function renderInline(text, allowedIds, keyPrefix) {
     if (match.index > last) parts.push(text.slice(last, match.index));
     const key = `${keyPrefix}-${match.index}`;
     if (match[1] !== undefined) {
-      parts.push(<strong key={key}>{match[1]}</strong>);
+      // The model often bolds a resort's link, as in **[Ski Arlberg](/resorts/…)**
+      parts.push(<strong key={key}>{renderInline(match[1], allowedIds, key)}</strong>);
     } else if (allowedIds.has(match[4])) {
       parts.push(<Link key={key} to={match[3]}>{match[2]}</Link>);
     } else {
