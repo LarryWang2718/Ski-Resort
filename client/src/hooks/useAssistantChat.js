@@ -45,7 +45,7 @@ const updateTurn = (turn, action) => {
         tools: turn.tools.map((tool) => (tool.id === data.id ? { ...tool, state: data.ok ? 'ok' : 'error', summary: data.summary } : tool))
       };
     case 'done':
-      // A refusal replaces whatever partial text arrived
+      // The server's final text replaces what streamed: a refusal message, or repaired links
       return { ...turn, status: data.status, phase: null, text: data.text ?? turn.text, resorts: data.resorts || [], mapLinks: data.mapLinks || [] };
     case 'error':
       return { ...turn, status: data.code === 'stopped' ? 'stopped' : 'failed', phase: null, error: data };

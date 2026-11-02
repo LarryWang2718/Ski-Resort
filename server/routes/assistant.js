@@ -184,9 +184,8 @@ const createAssistantRouter = ({
     if (failure) {
       stream.send('error', { code: failure.code, message: failure.message, retryable: failure.retryable });
     } else {
-      stream.send('done', {
-        status, ...(status === 'refused' && { text: REFUSAL_TEXT }), resorts: display.resorts, mapLinks: display.mapLinks
-      });
+      // The final text replaces what streamed: a refusal message, or links repaired after the fact
+      stream.send('done', { status, text: display.text, resorts: display.resorts, mapLinks: display.mapLinks });
     }
     stream.close();
 

@@ -264,3 +264,18 @@ test('the resort the user is viewing is added to the message, not the system pro
   assert.match(content[0].text, /^<page_context>.*Chamonix Mont-Blanc \(Haute-Savoie, France\), resort id 690b05deb76e84f97dfd4b28/);
   assert.deepEqual(buildUserContent('Hi'), [{ type: 'text', text: 'Hi' }]);
 });
+
+test('a link with a miscopied resort id is repaired in what the page shows, not in the history', async () => {
+  const wrongId = '690b05deb76e84f97d0365ed';
+  const answer = `The largest is [4 Vallées (Verbier)](/resorts/${wrongId}).`;
+  const model = createScriptedModel([
+    { message: toolUseMessage([{ name: 'search_resorts', input: { country: 'Switzerland' } }]) },
+    { chunks: [answer], message: textMessage(answer) }
+  ]);
+  const result = await turn(model).promise;
+
+  assert.equal(result.display.text, `The largest is [4 Vallées (Verbier)](/resorts/${RESORT.id}).`);
+  assert.equal(result.metrics.repairedLinks, 1);
+  // The model's own message is replayed exactly as it was written
+  assert.equal(result.messages.at(-1).content[0].text, answer);
+});

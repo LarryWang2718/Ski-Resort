@@ -4,6 +4,7 @@
 const { SYSTEM_PROMPT } = require('./prompt');
 const { TurnError, classifyError } = require('./errors');
 const { emptyUsage, addUsage, contextTokens } = require('./cost');
+const { repairResortLinks } = require('./links');
 const tools = require('./tools');
 const { logEvent } = require('./log');
 
@@ -84,11 +85,14 @@ const runTurn = async ({
   if (signal?.aborted) onOuterAbort();
   signal?.addEventListener('abort', onOuterAbort, { once: true });
 
-  const snapshot = () => ({
-    display: { ...display, resorts: [...display.resorts.values()] },
-    metrics: { ...metrics, ...usage, durationMs: Date.now() - startedAt },
-    lastContextTokens
-  });
+  const snapshot = () => {
+    const links = repairResortLinks(display.text, display.resorts);
+    return {
+      display: { ...display, text: links.text, resorts: [...display.resorts.values()] },
+      metrics: { ...metrics, ...usage, repairedLinks: links.repaired, durationMs: Date.now() - startedAt },
+      lastContextTokens
+    };
+  };
   const finish = (status) => ({ status, messages: status === 'refused' ? [] : turnMessages, ...snapshot() });
 
   const runToolCall = async (block, index) => {
