@@ -1,5 +1,6 @@
 # Runs the API and the built client together: http://localhost:8080
 # REACT_APP_MAPBOX_TOKEN=pk... docker compose up --build
+# Add --scale api=3 for three API copies behind nginx
 services:
   api:
     build: .
@@ -10,6 +11,9 @@ services:
       # nginx sits in front, so trust one proxy hop for client IPs
       TRUST_PROXY: "true"
       CLIENT_ORIGIN: http://localhost:8080
+    # Longer than the server's own 10 s shutdown timer, so running answers finish before Docker
+    # kills the container (Docker Desktop's default here was 1 s, which cut answers off)
+    stop_grace_period: 15s
     restart: unless-stopped
 
   client:
