@@ -54,7 +54,9 @@ export async function streamTurn(conversationId, { turnId, message }, { signal, 
     if (response.status === 401) handleUnauthorized(body.message);
     throw new TurnFailure(body.message || 'Something went wrong. Try again.', {
       code: body.code,
-      retryable: RETRYABLE_CODES.has(body.code),
+      // A 502-504 without the API's error code came from the proxy: no server took the question
+      // (one was stopping, for example), so a retry can work
+      retryable: body.code ? RETRYABLE_CODES.has(body.code) : response.status >= 502,
       resetsAt: body.resetsAt
     });
   }
