@@ -138,7 +138,7 @@ The database is built offline from OpenStreetMap:
 
 1. `node server/scripts/fetch/fetchSkiResortsAndFeatures.js` downloads every downhill piste and aerialway from the Overpass API into `skiresorts_clean.json`.
 2. `node server/scripts/mergeNodesWaysToSkiResorts.js` assigns each trail and lift to the nearest resort in a ranked resort list (`ski-resorts.json`, not included) within 10 km, favouring resorts that already have nearby members, and writes `ski-resorts-with-members.json`.
-3. `npm run import` (in `server/`) loads that file into MongoDB. It writes to staging collections and swaps them in only after everything succeeded, so a failed run leaves the live data untouched.
+3. `npm run import` (in `server/`) loads that file into MongoDB. It writes to staging collections and swaps them in only once everything has loaded, so a run that fails while loading leaves the live data untouched. MongoDB can't rename inside a transaction, so the three collections are swapped one after another, and for that moment a request can see new resorts beside old trails. Each swap is retried; if one still fails, the script says which collections already hold the new data, and running it again rebuilds all three.
 4. `npm run migrate` (in `server/`) applies idempotent schema changes and creates indexes.
 
 The data files are large and are not committed; regenerate them with the scripts above.

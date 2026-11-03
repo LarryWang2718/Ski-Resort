@@ -1,11 +1,11 @@
 // Rebuilds the resorts, trails and lifts collections from the merged OSM data file.
 // Usage: npm run import [-- path/to/ski-resorts-with-members.json]
 //
-// Everything is written to *_import staging collections first and only swapped in
-// once the whole import has succeeded, so a failed run leaves the live data untouched.
+// Everything is written to *_import staging collections first and only swapped in once all
+// of it has loaded, so a run that fails while loading leaves the live data untouched. The
+// three swaps can't be atomic together: each is retried, and if one still fails the script
+// says which collections are new. Running it again rebuilds all three.
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true });
-
 const fs = require('fs');
 const mongoose = require('mongoose');
 const connectDB = require('../config/database');
@@ -17,8 +17,11 @@ const { deriveResortFields } = require('../utils/resortFields');
 const DATA_FILE = process.argv[2] || path.join(__dirname, '../db/ski-resorts-with-members.json');
 const BATCH_SIZE = 1000;
 const MODELS = [Resort, Trail, Lift];
+const SWAP_ATTEMPTS = 3;
 
 const stagingName = (Model) => `${Model.collection.collectionName}_import`;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const toNumber = (value) => {
   const number = parseFloat(value);
@@ -152,15 +155,55 @@ const dropStaging = async (db) => {
   }
 };
 
-const importData = async () => {
-  const resortsData = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-  console.log(`Read ${resortsData.length} resorts from ${DATA_FILE}`);
+const stagingExists = async (db, Model) => (
+  await db.listCollections({ name: stagingName(Model) }, { nameOnly: true }).toArray()
+).length > 0;
 
-  const { docs, skipped } = buildDocuments(resortsData);
+// The swap stopped part-way: the live collections may be a mix of old and new data
+class PartialSwapError extends Error {
+  constructor(cause, swapped) {
+    super(cause.message, { cause });
+    this.name = 'PartialSwapError';
+    this.swapped = swapped;
+  }
+}
 
-  await connectDB();
-  const { db } = mongoose.connection;
+// One rename, retried through brief outages such as a primary stepping down. A rename whose
+// reply was lost has already happened, which shows as its staging collection being gone.
+const swapOne = async (db, Model, { attempts, wait }) => {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      if (attempt > 1 && !(await stagingExists(db, Model))) return;
+      await db.collection(stagingName(Model)).rename(Model.collection.collectionName, { dropTarget: true });
+      return;
+    } catch (error) {
+      if (attempt >= attempts) throw error;
+      await wait(1000 * attempt);
+    }
+  }
+};
 
+// MongoDB can't rename inside a transaction, so the three swaps aren't atomic together, and
+// stopping part-way leaves new resorts beside old trails or lifts that point at resort ids no
+// longer there. An error after the first swap is a PartialSwapError naming what is live.
+const swapIn = async (db, { attempts = SWAP_ATTEMPTS, wait = sleep } = {}) => {
+  const swapped = [];
+  for (const Model of MODELS) {
+    try {
+      await swapOne(db, Model, { attempts, wait });
+    } catch (error) {
+      // The live data is untouched only if the first staging collection is still there
+      if (swapped.length === 0 && await stagingExists(db, Model).catch(() => false)) throw error;
+      throw new PartialSwapError(error, swapped);
+    }
+    swapped.push(Model.collection.collectionName);
+  }
+};
+
+// Stages every collection, then swaps them in. The staging collections are dropped on a
+// failure that left the live data untouched, and kept after a partial swap; the next run
+// drops them before it starts.
+const runImport = async (db, docs, swapOptions) => {
   try {
     // Leftovers from an earlier failed run
     await dropStaging(db);
@@ -177,14 +220,21 @@ const importData = async () => {
       console.log(`Staged ${modelDocs.length} ${Model.collection.collectionName}`);
     }
 
-    // Each rename is atomic; the live collections are replaced only after every batch landed
-    for (const Model of MODELS) {
-      await db.collection(stagingName(Model)).rename(Model.collection.collectionName, { dropTarget: true });
-    }
+    await swapIn(db, swapOptions);
   } catch (error) {
-    await dropStaging(db).catch(() => {});
+    if (!(error instanceof PartialSwapError)) await dropStaging(db).catch(() => {});
     throw error;
   }
+};
+
+const importData = async () => {
+  const resortsData = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+  console.log(`Read ${resortsData.length} resorts from ${DATA_FILE}`);
+
+  const { docs, skipped } = buildDocuments(resortsData);
+
+  await connectDB();
+  await runImport(mongoose.connection.db, docs);
 
   console.log('\n=== Import Summary ===');
   for (const Model of MODELS) {
@@ -193,10 +243,22 @@ const importData = async () => {
   if (skipped > 0) console.log(`Skipped ${skipped} invalid members`);
 };
 
-importData()
-  .then(() => mongoose.disconnect())
-  .catch(async (error) => {
-    console.error('Import failed, live data left unchanged:', error.message);
-    await mongoose.disconnect();
-    process.exit(1);
-  });
+if (require.main === module) {
+  require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true });
+
+  importData()
+    .then(() => mongoose.disconnect())
+    .catch(async (error) => {
+      if (error instanceof PartialSwapError) {
+        console.error('Import failed while swapping in the new data:', error.message);
+        console.error(`Swapped in: ${error.swapped.join(', ') || 'none for certain'}. The others may still hold the old data, `
+          + 'so resort pages can show no trails or lifts. Run npm run import again to rebuild all three.');
+      } else {
+        console.error('Import failed, live data left unchanged:', error.message);
+      }
+      await mongoose.disconnect();
+      process.exit(1);
+    });
+}
+
+module.exports = { buildDocuments, runImport, swapIn, PartialSwapError };
